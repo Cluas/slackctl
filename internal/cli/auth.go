@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -239,6 +240,8 @@ func newAuthParseCurlCmd() *cobra.Command {
 }
 
 func saveExtractedTeams(cookieD string, teams []auth.BrowserTeam, source string) error {
+	// Ensure cookie is stored in decoded form; percentEncodeCookie re-encodes on send.
+	cookieD = decodeRepeatedly(cookieD)
 	var workspaces []auth.Workspace
 	for _, t := range teams {
 		normalized, err := auth.NormalizeURL(t.URL)
@@ -276,4 +279,18 @@ func redact(s string) string {
 		return "***"
 	}
 	return s[:6] + "…" + s[len(s)-4:]
+}
+
+// decodeRepeatedly applies percent-decoding until the string stabilizes.
+// Uses PathUnescape (not QueryUnescape) to preserve '+' as literal '+'.
+func decodeRepeatedly(s string) string {
+	current := s
+	for range 3 {
+		next, err := url.PathUnescape(current)
+		if err != nil || next == current {
+			break
+		}
+		current = next
+	}
+	return current
 }
