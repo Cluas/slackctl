@@ -12,6 +12,18 @@ A fast, single-binary Slack CLI for AI agents and humans. Written in Go.
 
 ## Install
 
+### Homebrew
+
+```bash
+brew install cluas/tap/slackctl
+```
+
+### Go install
+
+```bash
+go install github.com/cluas/slackctl/cmd/slackctl@latest
+```
+
 ### From source
 
 ```bash
@@ -19,12 +31,6 @@ git clone https://github.com/cluas/slackctl.git
 cd slackctl
 make build
 # binary at ./slackctl
-```
-
-### Go install
-
-```bash
-go install github.com/cluas/slackctl/cmd/slackctl@latest
 ```
 
 ## Quick start

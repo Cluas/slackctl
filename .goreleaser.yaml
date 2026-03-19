@@ -14,6 +14,7 @@ builds:
     goos:
       - darwin
       - linux
+      - windows
     goarch:
       - amd64
       - arm64
@@ -24,6 +25,9 @@ archives:
   - id: default
     format: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
 
 checksum:
   name_template: "checksums.txt"
@@ -35,3 +39,16 @@ release:
   github:
     owner: cluas
     name: slackctl
+
+brews:
+  - repository:
+      owner: cluas
+      name: homebrew-tap
+    name: slackctl
+    homepage: "https://github.com/cluas/slackctl"
+    description: "A fast, single-binary Slack CLI for AI agents and humans"
+    license: "MIT"
+    install: |
+      bin.install "slackctl"
+    test: |
+      assert_match version.to_s, shell_output("#{bin}/slackctl --version")
