@@ -45,6 +45,7 @@ brews:
       owner: cluas
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
     name: slackctl
     homepage: "https://github.com/cluas/slackctl"
     description: "A fast, single-binary Slack CLI for AI agents and humans"

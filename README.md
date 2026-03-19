@@ -12,10 +12,11 @@ A fast, single-binary Slack CLI for AI agents and humans. Written in Go.
 
 ## Install
 
-### Homebrew
+### Homebrew (macOS / Linux)
 
 ```bash
-brew install cluas/tap/slackctl
+brew tap cluas/tap
+brew install slackctl
 ```
 
 ### Go install
