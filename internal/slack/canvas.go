@@ -120,7 +120,7 @@ func (c *Client) downloadCanvasHTML(downloadURL string) (string, error) {
 		req.Header.Set("Cookie", "d="+percentEncodeCookie(c.auth.XoxdCookie))
 		req.Header.Set("Referer", "https://app.slack.com/")
 	}
-	req.Header.Set("User-Agent", c.profile().UserAgent)
+	c.setSourceHeaders(req)
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)

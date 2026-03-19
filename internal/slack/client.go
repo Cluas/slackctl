@@ -80,7 +80,7 @@ func (c *Client) standardAPI(method string, params map[string]string) (map[strin
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Authorization", "Bearer "+c.auth.Token)
-	req.Header.Set("User-Agent", c.profile().UserAgent)
+	c.setSourceHeaders(req)
 
 	return c.doRequest(req, method)
 }
