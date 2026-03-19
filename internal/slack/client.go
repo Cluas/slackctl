@@ -11,7 +11,39 @@ import (
 	"time"
 )
 
-const userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+// Header profiles per auth source.
+// Desktop uses Electron UA; browsers use Chrome UA.
+var headerProfiles = map[AuthSource]headerProfile{
+	SourceDesktop: {
+		UserAgent:    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Slack/4.49.75 Chrome/146.0.7680.72 Electron/41.0.1 Safari/537.36",
+		SecChUa:      `"Chromium";v="146", "Not)A;Brand";v="99", "Electron";v="41"`,
+		SecChPlatform: `"macOS"`,
+	},
+	SourceChrome: {
+		UserAgent:    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+		SecChUa:      `"Chromium";v="136", "Not-A.Brand";v="24", "Google Chrome";v="136"`,
+		SecChPlatform: `"macOS"`,
+	},
+	SourceFirefox: {
+		UserAgent:    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:138.0) Gecko/20100101 Firefox/138.0",
+		SecChUa:      "", // Firefox doesn't send sec-ch-ua
+		SecChPlatform: "",
+	},
+	SourceBrave: {
+		UserAgent:    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+		SecChUa:      `"Chromium";v="136", "Not-A.Brand";v="24", "Brave";v="136"`,
+		SecChPlatform: `"macOS"`,
+	},
+}
+
+// defaultProfile is used for manual/env/unknown sources.
+var defaultProfile = headerProfiles[SourceChrome]
+
+type headerProfile struct {
+	UserAgent     string
+	SecChUa       string
+	SecChPlatform string
+}
 
 // Client wraps Slack Web API calls, supporting both standard and browser auth.
 type Client struct {
@@ -48,7 +80,7 @@ func (c *Client) standardAPI(method string, params map[string]string) (map[strin
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Authorization", "Bearer "+c.auth.Token)
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", c.profile().UserAgent)
 
 	return c.doRequest(req, method)
 }
@@ -72,8 +104,7 @@ func (c *Client) browserAPI(method string, params map[string]string, attempt int
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Cookie", "d="+percentEncodeCookie(c.auth.XoxdCookie))
 	req.Header.Set("Origin", "https://app.slack.com")
-	req.Header.Set("User-Agent", userAgent)
-	setBrowserHeaders(req)
+	c.setSourceHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -158,14 +189,30 @@ func isUnreserved(c byte) bool {
 		c == '!' || c == '\'' || c == '(' || c == ')' || c == '*'
 }
 
-// setBrowserHeaders adds Chrome-like fingerprint headers to mimic a real browser.
-func setBrowserHeaders(req *http.Request) {
+// profile returns the header profile matching the auth source.
+func (c *Client) profile() headerProfile {
+	if p, ok := headerProfiles[c.auth.Source]; ok {
+		return p
+	}
+	return defaultProfile
+}
+
+// setSourceHeaders sets User-Agent and fingerprint headers based on auth source.
+func (c *Client) setSourceHeaders(req *http.Request) {
+	p := c.profile()
+	req.Header.Set("User-Agent", p.UserAgent)
 	req.Header.Set("Accept", "*/*")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("Sec-Ch-Ua", `"Chromium";v="136", "Not-A.Brand";v="24", "Google Chrome";v="136"`)
-	req.Header.Set("Sec-Ch-Ua-Mobile", "?0")
-	req.Header.Set("Sec-Ch-Ua-Platform", `"macOS"`)
 	req.Header.Set("Sec-Fetch-Dest", "empty")
 	req.Header.Set("Sec-Fetch-Mode", "cors")
 	req.Header.Set("Sec-Fetch-Site", "same-site")
+
+	if p.SecChUa != "" {
+		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+		req.Header.Set("Sec-Ch-Ua", p.SecChUa)
+		req.Header.Set("Sec-Ch-Ua-Mobile", "?0")
+		req.Header.Set("Sec-Ch-Ua-Platform", p.SecChPlatform)
+	} else {
+		// Firefox style
+		req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7")
+	}
 }

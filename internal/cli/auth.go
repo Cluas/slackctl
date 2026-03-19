@@ -159,7 +159,7 @@ func newAuthImportDesktopCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return saveExtractedTeams(extracted.CookieD, extracted.Teams, "Desktop")
+			return saveExtractedTeams(extracted.CookieD, extracted.Teams, "Desktop", slack.SourceDesktop)
 		},
 	}
 }
@@ -173,7 +173,7 @@ func newAuthImportChromeCmd() *cobra.Command {
 			if extracted == nil {
 				return fmt.Errorf("could not extract tokens from Chrome")
 			}
-			return saveExtractedTeams(extracted.CookieD, extracted.Teams, "Chrome")
+			return saveExtractedTeams(extracted.CookieD, extracted.Teams, "Chrome", slack.SourceChrome)
 		},
 	}
 }
@@ -187,7 +187,7 @@ func newAuthImportBraveCmd() *cobra.Command {
 			if extracted == nil {
 				return fmt.Errorf("could not extract tokens from Brave")
 			}
-			return saveExtractedTeams(extracted.CookieD, extracted.Teams, "Brave")
+			return saveExtractedTeams(extracted.CookieD, extracted.Teams, "Brave", slack.SourceBrave)
 		},
 	}
 }
@@ -201,7 +201,7 @@ func newAuthImportFirefoxCmd() *cobra.Command {
 			if extracted == nil {
 				return fmt.Errorf("could not extract tokens from Firefox")
 			}
-			return saveExtractedTeams(extracted.CookieD, extracted.Teams, "Firefox")
+			return saveExtractedTeams(extracted.CookieD, extracted.Teams, "Firefox", slack.SourceFirefox)
 		},
 	}
 }
@@ -239,7 +239,7 @@ func newAuthParseCurlCmd() *cobra.Command {
 	}
 }
 
-func saveExtractedTeams(cookieD string, teams []auth.BrowserTeam, source string) error {
+func saveExtractedTeams(cookieD string, teams []auth.BrowserTeam, source string, authSource slack.AuthSource) error {
 	// Ensure cookie is stored in decoded form; percentEncodeCookie re-encodes on send.
 	cookieD = decodeRepeatedly(cookieD)
 	var workspaces []auth.Workspace
@@ -253,6 +253,7 @@ func saveExtractedTeams(cookieD string, teams []auth.BrowserTeam, source string)
 			WorkspaceName: t.Name,
 			Auth: slack.Auth{
 				Type:       slack.AuthBrowser,
+				Source:     authSource,
 				XoxcToken:  t.Token,
 				XoxdCookie: cookieD,
 			},
