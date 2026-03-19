@@ -99,6 +99,18 @@ slackctl
 
 Environment variables take precedence over stored credentials.
 
+## Agent skill
+
+This repo ships an agent skill at `skills/slackctl/` compatible with Claude Code, Codex, Gemini CLI, etc.
+
+```bash
+# From source
+git clone https://github.com/cluas/slackctl.git
+bash slackctl/scripts/install-skill.sh
+```
+
+This installs the skill to `~/.claude/skills/` and `~/.agents/skills/`. Restart your agent session to activate.
+
 ## Credentials storage
 
 Credentials are stored in `~/.config/agent-slack/credentials.json` (compatible with [agent-slack](https://github.com/stablyai/agent-slack)).
