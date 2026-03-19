@@ -177,3 +177,9 @@ All commands output JSON to stdout. Use `| jq` for filtering:
 slackctl user get U01AAAA | jq '.email'
 slackctl message list "general" --limit 5 | jq '.[].text'
 ```
+
+## References
+
+- [references/commands.md](references/commands.md): full command map + all flags
+- [references/targets.md](references/targets.md): URL vs channel targeting rules
+- [references/output.md](references/output.md): JSON output shapes
