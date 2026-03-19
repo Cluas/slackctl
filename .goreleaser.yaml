@@ -1,0 +1,37 @@
+version: 2
+project_name: slackctl
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: slackctl
+    main: ./cmd/slackctl/
+    binary: slackctl
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/cluas/slackctl/internal/cli.version={{.Version}}
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+
+release:
+  github:
+    owner: cluas
+    name: slackctl
