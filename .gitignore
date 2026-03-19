@@ -1,4 +1,4 @@
-slackctl
+/slackctl
 dist/
 *.exe
 .DS_Store

@@ -96,6 +96,10 @@ Environment variables take precedence over stored credentials.
 
 Credentials are stored in `~/.config/agent-slack/credentials.json` (compatible with [agent-slack](https://github.com/stablyai/agent-slack)).
 
+## Acknowledgements
+
+This project is a Go rewrite of [agent-slack](https://github.com/stablyai/agent-slack) by [stablyai](https://github.com/stablyai). Thanks to the original authors for the excellent design and architecture that made this port straightforward.
+
 ## License
 
 [MIT](LICENSE)
