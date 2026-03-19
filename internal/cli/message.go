@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -236,14 +235,3 @@ func normalizeEmoji(s string) string {
 	return strings.Trim(s, ":")
 }
 
-// parseInt helper
-func parseInt(s string, def int) int {
-	if s == "" {
-		return def
-	}
-	n, err := strconv.Atoi(s)
-	if err != nil {
-		return def
-	}
-	return n
-}
