@@ -6,7 +6,6 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"regexp"
-	"strings"
 
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -77,19 +76,3 @@ func DecryptCookieWindows(encrypted []byte, slackDataDir string) (string, error)
 	return "", fmt.Errorf("Windows DPAPI decryption not yet implemented in Go version")
 }
 
-// findXoxdInDecrypted extracts xoxd cookie from raw decrypted string.
-func findXoxdInDecrypted(s string) string {
-	idx := strings.Index(s, "xoxd-")
-	if idx == -1 {
-		return s
-	}
-	end := idx
-	for end < len(s) {
-		b := s[end]
-		if b < 0x21 || b > 0x7e {
-			break
-		}
-		end++
-	}
-	return s[idx:end]
-}
