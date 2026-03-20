@@ -26,6 +26,13 @@ Run `slackctl --help` (or `slackctl <command> --help`) for the full option list.
     - `--thread-ts <seconds>.<micros>` (switches to thread mode; fetches replies)
     - `--limit <n>` (default `20`)
 
+- `slackctl message unread`
+  - Lists channels with unread messages using `client.counts` API.
+  - Options:
+    - `--limit <n>` (default `50`)
+    - `--fetch` (also retrieve unread message content)
+    - `--max-per-channel <n>` (default `10`, with `--fetch`)
+
 - `slackctl message send <channel-or-url> <text>`
   - Posts a message. If target is a user ID (`U...`), opens a DM automatically.
   - Options:

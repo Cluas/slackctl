@@ -32,6 +32,23 @@ All commands print JSON to stdout.
 ]
 ```
 
+- `message unread` returns an array of channels with unread info:
+
+```json
+[
+  {
+    "channel_id": "C123",
+    "channel_name": "general",
+    "unread_count": 3,
+    "messages": [
+      {"channel_id": "C123", "ts": "...", "user": "U123", "text": "..."}
+    ]
+  }
+]
+```
+
+The `messages` field is only present when `--fetch` is used.
+
 ## Search shapes
 
 - `search messages` returns:

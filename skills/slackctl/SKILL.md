@@ -4,6 +4,7 @@ description: |
   Slack automation CLI for AI agents. Use when:
   - Reading a Slack message or thread (given a URL or channel+ts)
   - Browsing recent channel messages / channel history
+  - Getting all unread messages across channels
   - Searching Slack messages or files
   - Sending, editing, or deleting a message; adding/removing reactions
   - Listing channels/conversations; creating channels and inviting users
@@ -11,7 +12,7 @@ description: |
   - Looking up Slack users
   - Marking channels/DMs as read
   - Opening DM or group DM channels
-  Triggers: "slack message", "slack thread", "slack URL", "slack link", "read slack", "reply on slack", "search slack", "channel history", "recent messages", "channel messages", "latest messages", "mark as read", "mark read"
+  Triggers: "slack message", "slack thread", "slack URL", "slack link", "read slack", "reply on slack", "search slack", "channel history", "recent messages", "channel messages", "latest messages", "mark as read", "mark read", "unread messages", "unread", "what did I miss"
 ---
 
 # Slack automation with `slackctl`
@@ -104,6 +105,26 @@ slackctl message list "https://workspace.slack.com/archives/C123/p17000000000000
 ```bash
 slackctl message list "general" --limit 20
 slackctl message list "C0123ABC" --limit 10
+```
+
+## Get unread messages
+
+List all channels with unread messages:
+
+```bash
+slackctl message unread --limit 20
+```
+
+Also fetch the actual unread message content:
+
+```bash
+slackctl message unread --fetch --max-per-channel 5
+```
+
+Note: For Enterprise Grid, use `--workspace` with the enterprise URL for unread counts:
+
+```bash
+slackctl message unread --workspace longbridge-group --fetch
 ```
 
 ## Send, edit, delete, or react
