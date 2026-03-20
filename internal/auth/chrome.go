@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -88,6 +89,10 @@ func ExtractFromChrome() *ChromeExtracted {
 	cookie, err := osascript(chromeCookieScript())
 	if err != nil {
 		debugAuth("Chrome cookie script error: %v", err)
+		fmt.Fprintf(os.Stderr, "Error: cannot control Chrome via AppleScript.\n"+
+			"Grant permission in: System Settings → Privacy & Security → Automation\n"+
+			"  → allow your terminal (Terminal/iTerm/etc.) to control Google Chrome.\n"+
+			"Or use: slackctl auth import-desktop / slackctl auth parse-curl\n")
 		return nil
 	}
 	if !strings.HasPrefix(cookie, "xoxd-") {

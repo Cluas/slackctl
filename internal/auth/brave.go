@@ -62,6 +62,10 @@ func ExtractFromBrave() *BraveExtracted {
 	}
 	teamsRaw, err := osascript(braveTeamsScript())
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: cannot control Brave via AppleScript.\n"+
+			"Grant permission in: System Settings → Privacy & Security → Automation\n"+
+			"  → allow your terminal to control Brave Browser.\n"+
+			"Or use: slackctl auth import-desktop / slackctl auth parse-curl\n")
 		return nil
 	}
 	teams := parseTeamsJSON(teamsRaw)
