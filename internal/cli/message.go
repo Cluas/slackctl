@@ -17,6 +17,7 @@ func newMessageCmd() *cobra.Command {
 	cmd.AddCommand(
 		newMessageGetCmd(),
 		newMessageListCmd(),
+		newMessageUnreadCmd(),
 		newMessageSendCmd(),
 		newMessageEditCmd(),
 		newMessageDeleteCmd(),
@@ -229,6 +230,40 @@ func resolveChannel(input string) (*islack.Client, string, error) {
 		return nil, "", err
 	}
 	return client, channelID, nil
+}
+
+func newMessageUnreadCmd() *cobra.Command {
+	var limit int
+	var fetchMessages bool
+	var maxPerChannel int
+	cmd := &cobra.Command{
+		Use:   "unread",
+		Short: "List channels with unread messages",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, _, err := auth.ResolveClient(workspaceFlag)
+			if err != nil {
+				return err
+			}
+			unreads, err := client.FetchUnreadChannels(limit)
+			if err != nil {
+				return err
+			}
+			if fetchMessages {
+				for i := range unreads {
+					msgs, err := client.FetchUnreadMessages(unreads[i].ChannelID, maxPerChannel)
+					if err != nil {
+						continue
+					}
+					unreads[i].Messages = msgs
+				}
+			}
+			return printJSON(unreads)
+		},
+	}
+	cmd.Flags().IntVar(&limit, "limit", 50, "Max channels to return")
+	cmd.Flags().BoolVar(&fetchMessages, "fetch", false, "Also fetch unread message content")
+	cmd.Flags().IntVar(&maxPerChannel, "max-per-channel", 10, "Max messages per channel (with --fetch)")
+	return cmd
 }
 
 func normalizeEmoji(s string) string {
