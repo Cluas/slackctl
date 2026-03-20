@@ -127,10 +127,14 @@ func extractTeamsFromLevelDB(ldbDir string) ([]BrowserTeam, error) {
 		return nil, err
 	}
 	defer os.RemoveAll(snapDir)
+	return readTeamsFromLevelDBDir(snapDir)
+}
 
-	db, err := leveldb.OpenFile(snapDir, &opt.Options{ReadOnly: true})
+// readTeamsFromLevelDBDir reads teams from an already-accessible LevelDB directory.
+func readTeamsFromLevelDBDir(ldbDir string) ([]BrowserTeam, error) {
+	db, err := leveldb.OpenFile(ldbDir, &opt.Options{ReadOnly: true})
 	if err != nil {
-		return nil, fmt.Errorf("failed to open LevelDB snapshot: %w", err)
+		return nil, fmt.Errorf("failed to open LevelDB: %w", err)
 	}
 	defer db.Close()
 
