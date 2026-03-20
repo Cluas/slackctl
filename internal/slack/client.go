@@ -90,7 +90,7 @@ func NewClient(auth Auth, workspaceURL string) *Client {
 	return &Client{
 		auth:         auth,
 		workspaceURL: strings.TrimRight(workspaceURL, "/"),
-		httpClient:   &http.Client{Timeout: 30 * time.Second},
+		httpClient:   newHTTPClient(auth.Source),
 	}
 }
 
@@ -130,7 +130,13 @@ func (c *Client) browserAPI(method string, params map[string]string, attempt int
 		form.Set(k, v)
 	}
 
-	apiURL := c.workspaceURL + "/api/" + method
+	// Enterprise Grid: browser tokens are bound to the enterprise org URL.
+	// Route through enterprise URL like the real browser does.
+	baseURL := c.workspaceURL
+	if c.auth.EnterpriseURL != "" {
+		baseURL = c.auth.EnterpriseURL
+	}
+	apiURL := baseURL + "/api/" + method
 	req, err := http.NewRequest("POST", apiURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, err

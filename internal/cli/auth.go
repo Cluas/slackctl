@@ -242,21 +242,41 @@ func newAuthParseCurlCmd() *cobra.Command {
 func saveExtractedTeams(cookieD string, teams []auth.BrowserTeam, source string, authSource slack.AuthSource) error {
 	// Ensure cookie is stored in decoded form; percentEncodeCookie re-encodes on send.
 	cookieD = decodeRepeatedly(cookieD)
+	// Build enterprise URL lookup from teams that have enterprise info
+	enterpriseURLs := make(map[string]string) // enterprise_id → enterprise URL
+	for _, t := range teams {
+		if t.EnterpriseID != "" && auth.IsEnterpriseURL(t.URL) {
+			normalized, _ := auth.NormalizeURL(t.URL)
+			enterpriseURLs[t.EnterpriseID] = normalized
+		}
+		if t.EnterpriseDomain != "" && t.EnterpriseID != "" {
+			enterpriseURLs[t.EnterpriseID] = "https://" + t.EnterpriseDomain + ".enterprise.slack.com"
+		}
+	}
+
 	var workspaces []auth.Workspace
 	for _, t := range teams {
 		normalized, err := auth.NormalizeURL(t.URL)
 		if err != nil {
 			normalized = t.URL
 		}
+		a := slack.Auth{
+			Type:       slack.AuthBrowser,
+			Source:     authSource,
+			XoxcToken:  t.Token,
+			XoxdCookie: cookieD,
+		}
+		// For browser-imported Enterprise Grid workspaces, store the enterprise URL
+		// so API requests route through the org URL (where the token is valid).
+		if t.EnterpriseID != "" && !auth.IsEnterpriseURL(normalized) {
+			if eURL, ok := enterpriseURLs[t.EnterpriseID]; ok {
+				a.EnterpriseURL = eURL
+			}
+		}
 		workspaces = append(workspaces, auth.Workspace{
 			WorkspaceURL:  normalized,
 			WorkspaceName: t.Name,
-			Auth: slack.Auth{
-				Type:       slack.AuthBrowser,
-				Source:     authSource,
-				XoxcToken:  t.Token,
-				XoxdCookie: cookieD,
-			},
+			Auth:          a,
 		})
 	}
 	if err := auth.UpsertWorkspaces(workspaces); err != nil {

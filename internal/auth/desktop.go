@@ -283,15 +283,23 @@ func extractTeamsFromConfigText(text string) []BrowserTeam {
 	var teams []BrowserTeam
 	for _, v := range teamsObj {
 		var t struct {
-			URL   string `json:"url"`
-			Name  string `json:"name"`
-			Token string `json:"token"`
+			URL              string `json:"url"`
+			Name             string `json:"name"`
+			Token            string `json:"token"`
+			EnterpriseID     string `json:"enterprise_id"`
+			EnterpriseDomain string `json:"enterprise_domain"`
 		}
 		if err := json.Unmarshal(v, &t); err != nil {
 			continue
 		}
 		if t.URL != "" && strings.HasPrefix(t.Token, "xoxc-") {
-			teams = append(teams, BrowserTeam{URL: t.URL, Name: t.Name, Token: t.Token})
+			teams = append(teams, BrowserTeam{
+				URL:              t.URL,
+				Name:             t.Name,
+				Token:            t.Token,
+				EnterpriseID:     t.EnterpriseID,
+				EnterpriseDomain: t.EnterpriseDomain,
+			})
 		}
 	}
 	return teams

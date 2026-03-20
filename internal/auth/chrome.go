@@ -2,6 +2,8 @@ package auth
 
 import (
 	"encoding/json"
+	"log"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -15,9 +17,11 @@ type ChromeExtracted struct {
 
 // BrowserTeam represents a team extracted from a browser.
 type BrowserTeam struct {
-	URL   string `json:"url"`
-	Name  string `json:"name,omitempty"`
-	Token string `json:"token"`
+	URL           string `json:"url"`
+	Name          string `json:"name,omitempty"`
+	Token         string `json:"token"`
+	EnterpriseID  string `json:"enterprise_id,omitempty"`
+	EnterpriseDomain string `json:"enterprise_domain,omitempty"`
 }
 
 func osascript(script string) (string, error) {
@@ -70,22 +74,39 @@ func chromeTeamsScript() string {
 }
 
 // ExtractFromChrome extracts Slack auth from Google Chrome (macOS only).
+func debugAuth(format string, args ...any) {
+	if os.Getenv("SLACKCTL_DEBUG") != "" {
+		log.Printf("[DEBUG] "+format, args...)
+	}
+}
+
 func ExtractFromChrome() *ChromeExtracted {
 	if runtime.GOOS != "darwin" {
+		debugAuth("Chrome: not macOS, skipping")
 		return nil
 	}
 	cookie, err := osascript(chromeCookieScript())
-	if err != nil || !strings.HasPrefix(cookie, "xoxd-") {
+	if err != nil {
+		debugAuth("Chrome cookie script error: %v", err)
 		return nil
 	}
+	if !strings.HasPrefix(cookie, "xoxd-") {
+		debugAuth("Chrome cookie not xoxd: %q", cookie)
+		return nil
+	}
+	debugAuth("Chrome cookie OK (len=%d)", len(cookie))
 	teamsRaw, err := osascript(chromeTeamsScript())
 	if err != nil {
+		debugAuth("Chrome teams script error: %v", err)
 		return nil
 	}
+	debugAuth("Chrome teams raw: %s", teamsRaw[:min(len(teamsRaw), 200)])
 	teams := parseTeamsJSON(teamsRaw)
 	if len(teams) == 0 {
+		debugAuth("Chrome: no teams parsed")
 		return nil
 	}
+	debugAuth("Chrome: found %d teams", len(teams))
 	return &ChromeExtracted{CookieD: cookie, Teams: teams}
 }
 
@@ -99,12 +120,31 @@ func parseTeamsJSON(raw string) []BrowserTeam {
 	}
 	var teams []BrowserTeam
 	for _, v := range obj {
-		var t BrowserTeam
+		var t struct {
+			URL              string `json:"url"`
+			Name             string `json:"name"`
+			Token            string `json:"token"`
+			EnterpriseID     string `json:"enterprise_id"`
+			EnterpriseName   string `json:"enterprise_name"`
+			EnterpriseDomain string `json:"enterprise_domain"`
+			Domain           string `json:"domain"`
+		}
 		if err := json.Unmarshal(v, &t); err != nil {
 			continue
 		}
 		if t.URL != "" && strings.HasPrefix(t.Token, "xoxc-") {
-			teams = append(teams, t)
+			bt := BrowserTeam{
+				URL:           t.URL,
+				Name:          t.Name,
+				Token:         t.Token,
+				EnterpriseID:  t.EnterpriseID,
+			}
+			// For Enterprise Grid, derive enterprise domain from the org team entry
+			// or from the enterprise_domain field if available
+			if t.EnterpriseDomain != "" {
+				bt.EnterpriseDomain = t.EnterpriseDomain
+			}
+			teams = append(teams, bt)
 		}
 	}
 	return teams

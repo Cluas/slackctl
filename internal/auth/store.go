@@ -80,7 +80,7 @@ func UpsertWorkspace(ws Workspace) error {
 	if !found {
 		creds.Workspaces = append(creds.Workspaces, ws)
 	}
-	if creds.Default == "" {
+	if creds.Default == "" || IsEnterpriseURL(creds.Default) {
 		creds.Default = pickBestDefault(creds.Workspaces)
 	}
 	return SaveCredentials(creds)
@@ -105,7 +105,7 @@ func UpsertWorkspaces(workspaces []Workspace) error {
 			creds.Workspaces = append(creds.Workspaces, ws)
 		}
 	}
-	if creds.Default == "" && len(creds.Workspaces) > 0 {
+	if len(creds.Workspaces) > 0 && (creds.Default == "" || IsEnterpriseURL(creds.Default)) {
 		creds.Default = pickBestDefault(creds.Workspaces)
 	}
 	return SaveCredentials(creds)
