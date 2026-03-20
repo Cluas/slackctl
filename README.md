@@ -104,10 +104,19 @@ Environment variables take precedence over stored credentials.
 This repo ships an agent skill at `skills/slackctl/` compatible with Claude Code, Codex, Gemini CLI, etc.
 
 ```bash
-# From source
+# Recommended (via skills.sh)
+npx skills add cluas/slackctl -g
+```
+
+<details>
+<summary>Manual installation</summary>
+
+```bash
 git clone https://github.com/cluas/slackctl.git
 bash slackctl/scripts/install-skill.sh
 ```
+
+</details>
 
 This installs the skill to `~/.claude/skills/` and `~/.agents/skills/`. Restart your agent session to activate.
 
