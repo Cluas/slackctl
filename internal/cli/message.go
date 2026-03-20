@@ -246,7 +246,18 @@ func newMessageUnreadCmd() *cobra.Command {
 			}
 			unreads, err := client.FetchUnreadChannels(limit)
 			if err != nil {
-				return err
+				// Enterprise Grid: client.counts only works on enterprise org URL.
+				// Auto-retry with enterprise workspace if available.
+				errMsg := err.Error()
+				if strings.Contains(errMsg, "team_is_restricted") || strings.Contains(errMsg, "enterprise_is_restricted") {
+					eClient, _, eErr := auth.ResolveEnterpriseClient()
+					if eErr == nil && eClient != nil {
+						unreads, err = eClient.FetchUnreadChannels(limit)
+					}
+				}
+				if err != nil {
+					return err
+				}
 			}
 			if fetchMessages {
 				for i := range unreads {

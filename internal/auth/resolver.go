@@ -55,6 +55,22 @@ func ResolveClient(workspaceSelector string) (*slack.Client, *Workspace, error) 
 	return nil, nil, fmt.Errorf("no Slack credentials available. Run \"agent-slack auth add\" or set SLACK_TOKEN")
 }
 
+// ResolveEnterpriseClient finds a stored workspace with an enterprise URL
+// and returns a client for it. Used as fallback for APIs that require
+// enterprise-level access (e.g. client.counts).
+func ResolveEnterpriseClient() (*slack.Client, *Workspace, error) {
+	creds, err := LoadCredentials()
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, w := range creds.Workspaces {
+		if IsEnterpriseURL(w.WorkspaceURL) {
+			return slack.NewClient(w.Auth, w.WorkspaceURL), &w, nil
+		}
+	}
+	return nil, nil, fmt.Errorf("no enterprise workspace found")
+}
+
 func envAuth(token string) slack.Auth {
 	if strings.HasPrefix(token, "xoxc-") {
 		cookie := strings.TrimSpace(os.Getenv("SLACK_COOKIE_D"))

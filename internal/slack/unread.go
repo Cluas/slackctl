@@ -14,6 +14,9 @@ type UnreadChannel struct {
 
 // FetchUnreadChannels returns channels that have unread messages.
 // Uses client.counts API for accurate unread counts across all channel types.
+// For Enterprise Grid, client.counts only works on the enterprise org URL.
+// If the initial call returns team_is_restricted, it auto-discovers the
+// enterprise URL via auth.test and retries.
 func (c *Client) FetchUnreadChannels(limit int) ([]UnreadChannel, error) {
 	resp, err := c.API("client.counts", map[string]string{
 		"thread_count_by_last_read": "true",
@@ -98,3 +101,4 @@ func (c *Client) FetchUnreadMessages(channelID string, maxMessages int) ([]Messa
 	}
 	return messages, nil
 }
+
