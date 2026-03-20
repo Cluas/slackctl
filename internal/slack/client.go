@@ -3,9 +3,13 @@ package slack
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"math"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -45,11 +49,39 @@ type headerProfile struct {
 	SecChPlatform string
 }
 
+var debugEnabled = os.Getenv("SLACKCTL_DEBUG") != ""
+
+func debugLog(format string, args ...any) {
+	if debugEnabled {
+		log.Printf("[DEBUG] "+format, args...)
+	}
+}
+
+func debugRequest(req *http.Request) {
+	if !debugEnabled {
+		return
+	}
+	dump, _ := httputil.DumpRequestOut(req, false)
+	log.Printf("[DEBUG] >>> REQUEST:\n%s", dump)
+}
+
+func debugResponse(resp *http.Response, body []byte) {
+	if !debugEnabled {
+		return
+	}
+	bodyPreview := string(body)
+	if len(bodyPreview) > 500 {
+		bodyPreview = bodyPreview[:500] + "..."
+	}
+	log.Printf("[DEBUG] <<< RESPONSE: %d\n%s", resp.StatusCode, bodyPreview)
+}
+
 // Client wraps Slack Web API calls, supporting both standard and browser auth.
 type Client struct {
-	auth         Auth
-	workspaceURL string
-	httpClient   *http.Client
+	auth               Auth
+	workspaceURL       string
+	httpClient         *http.Client
+	enterpriseResolved bool // true after resolving enterprise URL to workspace URL
 }
 
 func NewClient(auth Auth, workspaceURL string) *Client {
@@ -106,6 +138,9 @@ func (c *Client) browserAPI(method string, params map[string]string, attempt int
 	req.Header.Set("Origin", "https://app.slack.com")
 	c.setSourceHeaders(req)
 
+	debugLog("API %s → %s (source=%s)", method, apiURL, c.auth.Source)
+	debugRequest(req)
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -125,8 +160,14 @@ func (c *Client) browserAPI(method string, params map[string]string, attempt int
 		return c.browserAPI(method, params, attempt+1)
 	}
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response for %s: %w", method, err)
+	}
+	debugResponse(resp, body)
+
 	var data map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	if err := json.Unmarshal(body, &data); err != nil {
 		return nil, fmt.Errorf("failed to decode response for %s: %w", method, err)
 	}
 
@@ -134,7 +175,19 @@ func (c *Client) browserAPI(method string, params map[string]string, attempt int
 		return nil, fmt.Errorf("Slack HTTP %d calling %s", resp.StatusCode, method)
 	}
 	if ok, _ := data["ok"].(bool); !ok {
-		if errStr, _ := data["error"].(string); errStr != "" {
+		errStr, _ := data["error"].(string)
+
+		// Enterprise Grid: enterprise URL can't serve most APIs.
+		if errStr == "enterprise_is_restricted" && !c.enterpriseResolved && method != "auth.test" {
+			if resolved := c.resolveEnterpriseWorkspaceURL(); resolved != "" {
+				debugLog("Enterprise resolve: %s → %s", c.workspaceURL, resolved)
+				c.workspaceURL = resolved
+				c.enterpriseResolved = true
+				return c.browserAPI(method, params, 0)
+			}
+		}
+
+		if errStr != "" {
 			return nil, fmt.Errorf("Slack API error: %s", errStr)
 		}
 		return nil, fmt.Errorf("Slack API error calling %s", method)
@@ -166,6 +219,36 @@ func (c *Client) doRequest(req *http.Request, method string) (map[string]any, er
 // WorkspaceURL returns the configured workspace URL.
 func (c *Client) WorkspaceURL() string {
 	return c.workspaceURL
+}
+
+// resolveEnterpriseWorkspaceURL discovers a usable workspace URL for Enterprise Grid.
+// Tries auth.teams.list first (returns all workspaces), then falls back to auth.test.
+func (c *Client) resolveEnterpriseWorkspaceURL() string {
+	// Try auth.teams.list to get workspace-level URLs
+	c.enterpriseResolved = true // prevent recursion
+	resp, err := c.browserAPI("auth.teams.list", nil, 0)
+	if err == nil {
+		teams := getArray(resp, "teams")
+		for _, t := range teams {
+			rec := toRecord(t)
+			domain := stringVal(rec, "domain")
+			if domain != "" && !strings.Contains(domain, ".enterprise.") {
+				return "https://" + domain + ".slack.com"
+			}
+		}
+	}
+	// Fallback: auth.test url field
+	resp, err = c.browserAPI("auth.test", nil, 0)
+	if err == nil {
+		if wsURL, ok := resp["url"].(string); ok && wsURL != "" {
+			resolved := strings.TrimRight(wsURL, "/")
+			if !strings.Contains(resolved, ".enterprise.") {
+				return resolved
+			}
+		}
+	}
+	c.enterpriseResolved = false
+	return ""
 }
 
 // percentEncodeCookie mimics JavaScript's encodeURIComponent for cookie values.

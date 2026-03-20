@@ -80,8 +80,8 @@ func UpsertWorkspace(ws Workspace) error {
 	if !found {
 		creds.Workspaces = append(creds.Workspaces, ws)
 	}
-	if len(creds.Workspaces) == 1 {
-		creds.Default = ws.WorkspaceURL
+	if creds.Default == "" {
+		creds.Default = pickBestDefault(creds.Workspaces)
 	}
 	return SaveCredentials(creds)
 }
@@ -106,7 +106,7 @@ func UpsertWorkspaces(workspaces []Workspace) error {
 		}
 	}
 	if creds.Default == "" && len(creds.Workspaces) > 0 {
-		creds.Default = creds.Workspaces[0].WorkspaceURL
+		creds.Default = pickBestDefault(creds.Workspaces)
 	}
 	return SaveCredentials(creds)
 }
@@ -213,4 +213,23 @@ func ResolveWorkspaceSelector(selector string) (*Workspace, error) {
 // NormalizeURL returns canonical workspace URL.
 func NormalizeURL(u string) (string, error) {
 	return slack.NormalizeURL(u)
+}
+
+// IsEnterpriseURL returns true if the URL is an Enterprise Grid org-level URL.
+func IsEnterpriseURL(u string) bool {
+	return strings.Contains(strings.ToLower(u), ".enterprise.slack.com")
+}
+
+// pickBestDefault selects the best workspace URL for default.
+// Prefers non-enterprise URLs since enterprise URLs can't serve most APIs.
+func pickBestDefault(workspaces []Workspace) string {
+	for _, w := range workspaces {
+		if !IsEnterpriseURL(w.WorkspaceURL) {
+			return w.WorkspaceURL
+		}
+	}
+	if len(workspaces) > 0 {
+		return workspaces[0].WorkspaceURL
+	}
+	return ""
 }

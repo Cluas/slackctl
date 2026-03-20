@@ -31,6 +31,13 @@ func TestParseSlackCurlCommand(t *testing.T) {
 			wantURL: "https://team.slack.com",
 		},
 		{
+			name: "enterprise grid URL",
+			input: `curl 'https://longbridge-group.enterprise.slack.com/api/conversations.list' \
+  -H 'Cookie: d=xoxd-enterprise123' \
+  --data-raw 'token=xoxc-111-222-333-eee'`,
+			wantURL: "https://longbridge-group.enterprise.slack.com",
+		},
+		{
 			name:    "no slack URL",
 			input:   `curl 'https://example.com/api'`,
 			wantErr: true,

@@ -14,7 +14,7 @@ type ParsedCurlTokens struct {
 }
 
 var (
-	curlURLRe     = regexp.MustCompile(`curl\s+['"]?(https?://([^.]+)\.slack\.com[^'"\s]*)`)
+	curlURLRe     = regexp.MustCompile(`curl\s+['"]?(https?://([^'"\s]+\.slack\.com)[^'"\s]*)`)
 	curlCookieRe  = regexp.MustCompile(`(?:-b|--cookie)\s+\$?'([^']+)'|(?:-b|--cookie)\s+\$?"([^"]+)"|-H\s+\$?'[Cc]ookie:\s*([^']+)'|-H\s+\$?"[Cc]ookie:\s*([^"]+)"`)
 	xoxdCookieRe  = regexp.MustCompile(`(?:^|;\s*)d=(xoxd-[^;]+)`)
 	tokenPatterns = []*regexp.Regexp{
@@ -31,7 +31,7 @@ func ParseSlackCurlCommand(curlInput string) (*ParsedCurlTokens, error) {
 	if urlMatch == nil {
 		return nil, fmt.Errorf("could not find Slack workspace URL in cURL command")
 	}
-	workspaceURL := "https://" + urlMatch[2] + ".slack.com"
+	workspaceURL := "https://" + urlMatch[2]
 
 	cookieMatch := curlCookieRe.FindStringSubmatch(curlInput)
 	cookieHeader := ""
@@ -43,7 +43,11 @@ func ParseSlackCurlCommand(curlInput string) (*ParsedCurlTokens, error) {
 			}
 		}
 	}
+	// Try cookie header first, then fall back to searching the whole command
 	xoxdMatch := xoxdCookieRe.FindStringSubmatch(cookieHeader)
+	if xoxdMatch == nil {
+		xoxdMatch = xoxdCookieRe.FindStringSubmatch(curlInput)
+	}
 	if xoxdMatch == nil {
 		return nil, fmt.Errorf("could not find xoxd cookie (d=xoxd-...) in cURL command")
 	}
