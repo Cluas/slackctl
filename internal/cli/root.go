@@ -9,16 +9,26 @@ import (
 
 var version = "dev"
 
-var workspaceFlag string
+var (
+	workspaceFlag string
+	verboseFlag   bool
+)
 
 func NewRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:     "slackctl",
 		Short:   "Slack automation CLI for AI agents",
 		Version: version,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			if verboseFlag {
+				os.Setenv("SLACKCTL_DEBUG", "1")
+			}
+		},
 	}
 	root.PersistentFlags().StringVar(&workspaceFlag, "workspace", "",
 		"Workspace selector (full URL or unique substring)")
+	root.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "V", false,
+		"Enable debug logging")
 
 	root.AddCommand(
 		newAuthCmd(),

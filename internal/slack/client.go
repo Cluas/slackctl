@@ -49,16 +49,18 @@ type headerProfile struct {
 	SecChPlatform string
 }
 
-var debugEnabled = os.Getenv("SLACKCTL_DEBUG") != ""
+func isDebug() bool {
+	return os.Getenv("SLACKCTL_DEBUG") != ""
+}
 
 func debugLog(format string, args ...any) {
-	if debugEnabled {
+	if isDebug() {
 		log.Printf("[DEBUG] "+format, args...)
 	}
 }
 
 func debugRequest(req *http.Request) {
-	if !debugEnabled {
+	if !isDebug() {
 		return
 	}
 	dump, _ := httputil.DumpRequestOut(req, false)
@@ -66,7 +68,7 @@ func debugRequest(req *http.Request) {
 }
 
 func debugResponse(resp *http.Response, body []byte) {
-	if !debugEnabled {
+	if !isDebug() {
 		return
 	}
 	bodyPreview := string(body)
