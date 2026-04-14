@@ -288,6 +288,36 @@ func (c *Client) profile() headerProfile {
 	return defaultProfile
 }
 
+// AuthHeaders returns the authentication headers for this client.
+func (c *Client) AuthHeaders() map[string]string {
+	headers := map[string]string{}
+	if c.auth.Type == AuthBrowser {
+		headers["Cookie"] = "d=" + percentEncodeCookie(c.auth.XoxdCookie)
+	} else {
+		headers["Authorization"] = "Bearer " + c.auth.Token
+	}
+	return headers
+}
+
+// RawRequest performs an HTTP request using the client's httpClient and auth headers.
+// Used for file upload (POST multipart to external URL) and download (GET with auth).
+func (c *Client) RawRequest(method, url string, body io.Reader, contentType string) (*http.Response, error) {
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		return nil, err
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	for k, v := range c.AuthHeaders() {
+		req.Header.Set(k, v)
+	}
+	c.setSourceHeaders(req)
+	debugLog("RawRequest %s %s", method, url)
+	debugRequest(req)
+	return c.httpClient.Do(req)
+}
+
 // setSourceHeaders sets User-Agent and fingerprint headers based on auth source.
 func (c *Client) setSourceHeaders(req *http.Request) {
 	p := c.profile()

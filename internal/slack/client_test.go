@@ -2,6 +2,32 @@ package slack
 
 import "testing"
 
+func TestAuthHeaders_Standard(t *testing.T) {
+	c := NewClient(Auth{Type: AuthStandard, Token: "xoxb-test-token"}, "https://test.slack.com")
+	h := c.AuthHeaders()
+	if h["Authorization"] != "Bearer xoxb-test-token" {
+		t.Errorf("expected Bearer token, got %q", h["Authorization"])
+	}
+	if _, ok := h["Cookie"]; ok {
+		t.Error("standard auth should not set Cookie header")
+	}
+}
+
+func TestAuthHeaders_Browser(t *testing.T) {
+	c := NewClient(Auth{
+		Type:       AuthBrowser,
+		XoxcToken:  "xoxc-test",
+		XoxdCookie: "xoxd-test",
+	}, "https://test.slack.com")
+	h := c.AuthHeaders()
+	if _, ok := h["Authorization"]; ok {
+		t.Error("browser auth should not set Authorization header")
+	}
+	if h["Cookie"] != "d=xoxd-test" {
+		t.Errorf("expected cookie header, got %q", h["Cookie"])
+	}
+}
+
 func TestPercentEncodeCookie(t *testing.T) {
 	tests := []struct {
 		name  string

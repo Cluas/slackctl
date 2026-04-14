@@ -37,6 +37,7 @@ func NewRootCmd() *cobra.Command {
 		newSearchCmd(),
 		newUserCmd(),
 		newChannelCmd(),
+		newFileCmd(),
 	)
 	return root
 }
