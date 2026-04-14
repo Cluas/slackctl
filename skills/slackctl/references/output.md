@@ -69,6 +69,50 @@ The `messages` field is only present when `--fetch` is used.
 }
 ```
 
+## File shapes
+
+- `file upload` returns the uploaded file info:
+
+```json
+{
+  "id": "F123",
+  "name": "report.pdf",
+  "title": "Weekly Report",
+  "filetype": "pdf",
+  "mimetype": "application/pdf",
+  "size": 12345,
+  "user": "U123",
+  "created": 1700000000,
+  "url_private": "https://files.slack.com/files-pri/T1/report.pdf",
+  "url_private_download": "https://files.slack.com/files-pri/T1/download/report.pdf",
+  "permalink": "https://team.slack.com/files/U1/F1/report.pdf"
+}
+```
+
+- `file download` returns (when downloading):
+
+```json
+{
+  "file_id": "F123",
+  "path": "./report.pdf"
+}
+```
+
+- `file download --url-only` returns the full file info (same shape as `file info`).
+
+- `file list` returns:
+
+```json
+{
+  "files": [
+    {"id": "F123", "name": "report.pdf", "filetype": "pdf", "size": 12345}
+  ],
+  "total": 42
+}
+```
+
+- `file info` returns the full file info object (same shape as `file upload` output).
+
 ## Channel shapes
 
 - `channel list` returns an array:

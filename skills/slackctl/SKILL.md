@@ -7,12 +7,15 @@ description: |
   - Getting all unread messages across channels
   - Searching Slack messages or files
   - Sending, editing, or deleting a message; adding/removing reactions
+  - Uploading files/images to channels or threads (including stdin piping)
+  - Downloading Slack files and attachments to local paths
+  - Listing, inspecting, or deleting files
   - Listing channels/conversations; creating channels and inviting users
   - Fetching a Slack canvas as markdown
   - Looking up Slack users
   - Marking channels/DMs as read
   - Opening DM or group DM channels
-  Triggers: "slack message", "slack thread", "slack URL", "slack link", "read slack", "reply on slack", "search slack", "channel history", "recent messages", "channel messages", "latest messages", "mark as read", "mark read", "unread messages", "unread", "what did I miss"
+  Triggers: "slack message", "slack thread", "slack URL", "slack link", "read slack", "reply on slack", "search slack", "channel history", "recent messages", "channel messages", "latest messages", "mark as read", "mark read", "unread messages", "unread", "what did I miss", "upload file", "send image", "download file", "slack file", "attach file"
 ---
 
 # Slack automation with `slackctl`
@@ -149,6 +152,38 @@ slackctl channel list --limit 50
 slackctl channel new "incident-war-room"
 slackctl channel new "incident-leads" --private
 slackctl channel invite "incident-war-room" "U01AAAA,U02BBBB"
+```
+
+## Files (upload, download, list, info, delete)
+
+Upload a file to a channel or thread:
+
+```bash
+slackctl file upload ./report.pdf "general" --title "Weekly Report" --message "Here is this week's report"
+slackctl file upload ./screenshot.png "general" --thread-ts 1700000000.000000
+slackctl file upload ./photo.jpg U01AAAA --message "Check this out"
+```
+
+Upload from stdin (pipe):
+
+```bash
+cat output.log | slackctl file upload - "general" --filename "build.log" --title "Build Log"
+```
+
+Download a file:
+
+```bash
+slackctl file download F0123ABCDEF --output ./downloaded.png
+slackctl file download F0123ABCDEF --url-only
+```
+
+List, inspect, delete files:
+
+```bash
+slackctl file list --channel "general" --limit 10
+slackctl file list --types images --limit 20
+slackctl file info F0123ABCDEF
+slackctl file delete F0123ABCDEF
 ```
 
 ## Search (messages + files)

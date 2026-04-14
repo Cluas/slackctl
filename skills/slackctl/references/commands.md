@@ -55,6 +55,34 @@ Run `slackctl --help` (or `slackctl <command> --help`) for the full option list.
 - `slackctl channel invite <channel> <user1,user2,...>`
 - `slackctl channel mark <channel> <timestamp>` — mark as read
 
+## Files
+
+- `slackctl file upload <file-or-dash> <channel>`
+  - Upload a file to a channel or thread. Use `-` to read from stdin.
+  - If target is a user ID (`U...`), opens a DM automatically.
+  - Options:
+    - `--thread-ts <seconds>.<micros>` (reply in thread)
+    - `--title <text>` (file title)
+    - `--message <text>` (initial comment posted with the file)
+    - `--filename <name>` (override filename; required when reading from stdin)
+
+- `slackctl file download <file-id>`
+  - Download a file to local disk, or show its URL.
+  - Options:
+    - `--output <path>` (destination file path; default: current dir with original filename)
+    - `--url-only` (output file info JSON with URL instead of downloading)
+
+- `slackctl file list`
+  - List files accessible to the authenticated user.
+  - Options:
+    - `--channel <id-or-name>` (filter by channel)
+    - `--user <user-id>` (filter by user)
+    - `--types <types>` (comma-separated: images, pdfs, snippets, gdocs, zips, etc.)
+    - `--limit <n>` (default `20`)
+
+- `slackctl file info <file-id>` — get detailed file metadata
+- `slackctl file delete <file-id>` — delete a file
+
 ## Search
 
 - `slackctl search messages <query> [--limit <n>]`
