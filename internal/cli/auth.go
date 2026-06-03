@@ -167,7 +167,7 @@ func newAuthImportDesktopCmd() *cobra.Command {
 func newAuthImportChromeCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "import-chrome",
-		Short: "Import xoxc/xoxd from Google Chrome (macOS)",
+		Short: "Import xoxc/xoxd from Google Chrome (macOS/Linux/Windows)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			extracted := auth.ExtractFromChrome()
 			if extracted == nil {
@@ -181,7 +181,7 @@ func newAuthImportChromeCmd() *cobra.Command {
 func newAuthImportBraveCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "import-brave",
-		Short: "Import xoxc/xoxd from Brave Browser (macOS)",
+		Short: "Import xoxc/xoxd from Brave Browser (macOS/Linux/Windows)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			extracted := auth.ExtractFromBrave()
 			if extracted == nil {

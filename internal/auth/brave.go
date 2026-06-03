@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 )
@@ -13,6 +12,36 @@ import (
 type BraveExtracted struct {
 	CookieD string
 	Teams   []BrowserTeam
+}
+
+// braveMacServices are the macOS Keychain "Safe Storage" service names Brave
+// may use, in addition to the Chromium defaults.
+var braveMacServices = []string{"Brave Safe Storage", "Brave Browser Safe Storage"}
+
+// braveLinuxApps are the Linux secret-tool "application" attribute values Brave
+// may use for its OSCrypt key.
+var braveLinuxApps = []string{"brave", "Brave", "Brave-Browser", "chrome", "chromium"}
+
+func bravePasswords(prefix string) []string {
+	return GetChromiumSafeStoragePasswords(prefix, braveMacServices, braveLinuxApps)
+}
+
+// braveBaseDir returns Brave's "User Data" base directory for the current OS.
+func braveBaseDir() string {
+	home, _ := os.UserHomeDir()
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(home, "Library", "Application Support", "BraveSoftware", "Brave-Browser")
+	case "linux":
+		return filepath.Join(home, ".config", "BraveSoftware", "Brave-Browser")
+	case "windows":
+		localAppData := os.Getenv("LOCALAPPDATA")
+		if localAppData == "" {
+			localAppData = filepath.Join(home, "AppData", "Local")
+		}
+		return filepath.Join(localAppData, "BraveSoftware", "Brave-Browser", "User Data")
+	}
+	return ""
 }
 
 func braveTeamsScript() string {
@@ -34,32 +63,43 @@ func braveTeamsScript() string {
   `
 }
 
-func braveCookiesDBPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, "Library", "Application Support", "BraveSoftware", "Brave-Browser", "Default", "Cookies")
-}
-
-func braveSafeStoragePasswords() []string {
-	services := []string{
-		"Brave Safe Storage",
-		"Brave Browser Safe Storage",
-		"Chrome Safe Storage",
-		"Chromium Safe Storage",
-	}
-	var passwords []string
-	for _, svc := range services {
-		if pw := KeychainGet("", svc); pw != "" {
-			passwords = append(passwords, pw)
-		}
-	}
-	return passwords
-}
-
-// ExtractFromBrave extracts Slack auth from Brave browser (macOS only).
+// ExtractFromBrave extracts Slack auth from Brave browser.
+// Primary: reads Cookie DB + LevelDB directly (works on macOS/Linux/Windows).
+// Fallback: AppleScript on macOS if the DB method fails.
 func ExtractFromBrave() *BraveExtracted {
-	if runtime.GOOS != "darwin" {
+	if result := extractFromBraveDB(); result != nil {
+		return result
+	}
+	if runtime.GOOS == "darwin" {
+		return extractFromBraveAppleScript()
+	}
+	return nil
+}
+
+func extractFromBraveDB() *BraveExtracted {
+	profileDirs := chromiumProfileDirs(braveBaseDir())
+	if len(profileDirs) == 0 {
+		debugAuth("Brave: no profile dirs found")
 		return nil
 	}
+	for _, profileDir := range profileDirs {
+		debugAuth("Brave DB: trying profile %s", profileDir)
+		teams := extractTeamsFromChromiumLevelDB(profileDir)
+		if len(teams) == 0 {
+			debugAuth("Brave DB: no teams in %s", profileDir)
+			continue
+		}
+		cookieD := extractCookieDFromChromiumProfile(profileDir, bravePasswords)
+		if cookieD == "" {
+			debugAuth("Brave DB: no cookie_d in %s", profileDir)
+			continue
+		}
+		return &BraveExtracted{CookieD: cookieD, Teams: teams}
+	}
+	return nil
+}
+
+func extractFromBraveAppleScript() *BraveExtracted {
 	teamsRaw, err := osascript(braveTeamsScript())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: cannot control Brave via AppleScript.\n"+
@@ -73,53 +113,15 @@ func ExtractFromBrave() *BraveExtracted {
 		return nil
 	}
 
-	cookieD, err := extractCookieDFromBrave()
-	if err != nil || !strings.HasPrefix(cookieD, "xoxd-") {
+	var cookieD string
+	for _, profileDir := range chromiumProfileDirs(braveBaseDir()) {
+		if c := extractCookieDFromChromiumProfile(profileDir, bravePasswords); c != "" {
+			cookieD = c
+			break
+		}
+	}
+	if !strings.HasPrefix(cookieD, "xoxd-") {
 		return nil
 	}
 	return &BraveExtracted{CookieD: cookieD, Teams: teams}
-}
-
-func extractCookieDFromBrave() (string, error) {
-	dbPath := braveCookiesDBPath()
-	if _, err := os.Stat(dbPath); err != nil {
-		return "", fmt.Errorf("Brave Cookies DB not found: %s", dbPath)
-	}
-
-	rows, err := QueryReadonlySQLite(dbPath,
-		"select value, encrypted_value from cookies where name = 'd' and host_key like '%slack.com' order by length(encrypted_value) desc")
-	if err != nil {
-		return "", err
-	}
-	if len(rows) == 0 {
-		return "", fmt.Errorf("no Slack 'd' cookie found in Brave")
-	}
-
-	row := rows[0]
-	if v, ok := row["value"].(string); ok && strings.HasPrefix(v, "xoxd-") {
-		return v, nil
-	}
-
-	encrypted, ok := row["encrypted_value"].([]byte)
-	if !ok || len(encrypted) == 0 {
-		return "", fmt.Errorf("Brave Slack 'd' cookie had no encrypted_value")
-	}
-
-	prefix := string(encrypted[:3])
-	data := encrypted
-	if prefix == "v10" || prefix == "v11" {
-		data = encrypted[3:]
-	}
-	passwords := braveSafeStoragePasswords()
-	xoxdRe := regexp.MustCompile(`xoxd-[A-Za-z0-9%/+_=.-]+`)
-	for _, pw := range passwords {
-		decrypted, err := DecryptChromiumCookie(data, pw, 1003)
-		if err != nil {
-			continue
-		}
-		if match := xoxdRe.FindString(decrypted); match != "" {
-			return match, nil
-		}
-	}
-	return "", fmt.Errorf("could not decrypt Slack 'd' cookie from Brave")
 }

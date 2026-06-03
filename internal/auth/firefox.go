@@ -243,12 +243,19 @@ func decodeFirefoxCookie(cookie string) string {
 
 func listFirefoxProfiles() []string {
 	home, _ := os.UserHomeDir()
+	appData := os.Getenv("APPDATA")
+	if appData == "" {
+		appData = filepath.Join(home, "AppData", "Roaming")
+	}
 	var roots []string
 	switch {
 	case fileExists(filepath.Join(home, "Library", "Application Support", "Firefox")):
 		roots = append(roots, filepath.Join(home, "Library", "Application Support", "Firefox"))
 	case fileExists(filepath.Join(home, ".mozilla", "firefox")):
 		roots = append(roots, filepath.Join(home, ".mozilla", "firefox"))
+	case fileExists(filepath.Join(appData, "Mozilla", "Firefox")):
+		// Windows: %APPDATA%\Mozilla\Firefox (cookies.sqlite is plaintext)
+		roots = append(roots, filepath.Join(appData, "Mozilla", "Firefox"))
 	}
 
 	var profiles []string
