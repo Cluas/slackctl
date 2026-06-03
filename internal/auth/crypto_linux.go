@@ -5,12 +5,15 @@ import (
 	"strings"
 )
 
-func getSafeStoragePasswordsOS(prefix string) []string {
+func getSafeStoragePasswordsOS(prefix string, _ []string, linuxApps []string) []string {
 	attributes := [][]string{
 		{"application", "com.slack.Slack"},
 		{"application", "Slack"},
 		{"application", "slack"},
 		{"service", "Slack Safe Storage"},
+	}
+	for _, app := range linuxApps {
+		attributes = append(attributes, []string{"application", app})
 	}
 	var passwords []string
 	for _, pair := range attributes {

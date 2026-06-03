@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func getSafeStoragePasswordsOS(prefix string) []string {
+func getSafeStoragePasswordsOS(prefix string, macServices, _ []string) []string {
 	_ = prefix
 	queries := []struct {
 		service string
@@ -16,6 +16,12 @@ func getSafeStoragePasswordsOS(prefix string) []string {
 		{"Slack Safe Storage", ""},
 		{"Chrome Safe Storage", ""},
 		{"Chromium Safe Storage", ""},
+	}
+	for _, svc := range macServices {
+		queries = append(queries, struct {
+			service string
+			account string
+		}{svc, ""})
 	}
 	var passwords []string
 	for _, q := range queries {

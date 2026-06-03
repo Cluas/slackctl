@@ -53,13 +53,25 @@ func DecryptChromiumCookie(data []byte, password string, iterations int) (string
 	return string(plain), nil
 }
 
-// GetSafeStoragePasswords retrieves Chromium Safe Storage passwords from the system keychain.
+// GetSafeStoragePasswords retrieves Chromium Safe Storage passwords for the
+// Slack/Chrome built-in defaults.
 func GetSafeStoragePasswords(prefix string) []string {
-	passwords := getSafeStoragePasswordsOS(prefix)
-	// Deduplicate
+	return dedupeStrings(getSafeStoragePasswordsOS(prefix, nil, nil))
+}
+
+// GetChromiumSafeStoragePasswords retrieves Safe Storage passwords for a specific
+// Chromium-family browser (e.g. Brave). macServices are extra macOS keychain
+// "Safe Storage" service names to query; linuxApps are extra Linux secret-tool
+// "application" attribute values to query. Both are tried in addition to the
+// built-in Slack/Chromium defaults.
+func GetChromiumSafeStoragePasswords(prefix string, macServices, linuxApps []string) []string {
+	return dedupeStrings(getSafeStoragePasswordsOS(prefix, macServices, linuxApps))
+}
+
+func dedupeStrings(in []string) []string {
 	seen := make(map[string]bool)
 	var unique []string
-	for _, p := range passwords {
+	for _, p := range in {
 		if !seen[p] {
 			seen[p] = true
 			unique = append(unique, p)
@@ -68,11 +80,9 @@ func GetSafeStoragePasswords(prefix string) []string {
 	return unique
 }
 
-// DecryptCookieWindows decrypts a Chromium cookie on Windows using DPAPI + AES-256-GCM.
-// This is a placeholder — Windows support requires os/exec PowerShell calls.
-func DecryptCookieWindows(encrypted []byte, slackDataDir string) (string, error) {
-	_ = slackDataDir
-	_ = encrypted
-	return "", fmt.Errorf("Windows DPAPI decryption not yet implemented in Go version")
-}
+// DecryptCookieWindows decrypts a Chromium v10/v11 cookie on Windows using
+// DPAPI + AES-256-GCM. The real implementation lives in crypto_windows.go;
+// crypto_other.go provides a stub for non-Windows builds. localStateDir is the
+// directory containing the browser's "Local State" file (the Slack data dir, or
+// the Chrome "User Data" dir).
 

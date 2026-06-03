@@ -4,8 +4,8 @@ A fast, single-binary Slack CLI for AI agents and humans. Written in Go.
 
 ## Features
 
-- **Single binary** — no Node.js, no runtime dependencies
-- **Auto-auth** — extracts tokens from Slack Desktop, Chrome, Brave, Firefox
+- **Single binary** — no Node.js, no runtime dependencies; macOS, Linux & Windows (amd64/arm64)
+- **Auto-auth** — extracts tokens from Slack Desktop, Chrome, Brave, Firefox (cross-platform: macOS Keychain, Linux Secret Service, Windows DPAPI)
 - **Browser auth** — works with `xoxc` + `xoxd` cookie (no bot token required)
 - **AI-friendly** — JSON output, designed for agent tool use
 - **Full Slack API** — messages, channels, users, search, canvas, reactions
@@ -19,6 +19,18 @@ brew tap cluas/tap
 brew install slackctl
 ```
 
+### Scoop (Windows)
+
+```powershell
+scoop bucket add cluas https://github.com/cluas/scoop-bucket
+scoop install slackctl
+```
+
+### Prebuilt binaries (macOS / Linux / Windows)
+
+Download an archive for your OS/arch from the [releases page](https://github.com/cluas/slackctl/releases),
+extract it, and put `slackctl` (or `slackctl.exe` on Windows) on your `$PATH`.
+
 ### Go install
 
 ```bash
@@ -30,8 +42,14 @@ go install github.com/cluas/slackctl/cmd/slackctl@latest
 ```bash
 git clone https://github.com/cluas/slackctl.git
 cd slackctl
-make build
-# binary at ./slackctl
+make build            # binary for the current platform
+make cross            # cross-compile for all platforms into dist/
+```
+
+Manual single-target cross-compile (no Make):
+
+```bash
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o slackctl.exe ./cmd/slackctl/
 ```
 
 ## Quick start

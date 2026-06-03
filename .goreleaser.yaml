@@ -54,3 +54,18 @@ brews:
       bin.install "slackctl"
     test: |
       assert_match version.to_s, shell_output("#{bin}/slackctl --version")
+
+# Windows install via Scoop. Publishes a manifest to the cluas/scoop-bucket repo.
+# Reuses the same PAT as the Homebrew tap (must have push access to scoop-bucket).
+# Users then:
+#   scoop bucket add cluas https://github.com/cluas/scoop-bucket
+#   scoop install slackctl
+scoops:
+  - repository:
+      owner: cluas
+      name: scoop-bucket
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: bucket
+    homepage: "https://github.com/cluas/slackctl"
+    description: "A fast, single-binary Slack CLI for AI agents and humans"
+    license: MIT

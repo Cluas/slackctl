@@ -15,7 +15,7 @@ description: |
   - Looking up Slack users
   - Marking channels/DMs as read
   - Opening DM or group DM channels
-  Triggers: "slack message", "slack thread", "slack URL", "slack link", "read slack", "reply on slack", "search slack", "channel history", "recent messages", "channel messages", "latest messages", "mark as read", "mark read", "unread messages", "unread", "what did I miss", "upload file", "send image", "download file", "slack file", "attach file"
+  Triggers: "slack message", "slack thread", "slack URL", "read slack", "reply on slack", "search slack", "channel history", "recent messages", "mark as read", "unread messages", "unread", "what did I miss", "upload file", "send image", "download file", "slack file", "attach file"
 ---
 
 # Slack automation with `slackctl`
@@ -24,10 +24,31 @@ description: |
 
 ## Installation
 
-If `slackctl` is not found on `$PATH`, install it:
+`slackctl` is a single static binary with no runtime dependencies, available for macOS, Linux, and Windows (amd64 + arm64).
 
-- `brew tap cluas/tap && brew install slackctl` (macOS/Linux, recommended)
-- `go install github.com/cluas/slackctl/cmd/slackctl@latest` (requires Go)
+If `slackctl` is not found on `$PATH`, install it for the current OS:
+
+- **macOS / Linux** (recommended) — Homebrew:
+
+```bash
+brew tap cluas/tap
+brew install slackctl
+```
+
+- **Windows** (recommended) — Scoop:
+
+```powershell
+scoop bucket add cluas https://github.com/cluas/scoop-bucket
+scoop install slackctl
+```
+
+- **Any OS with Go installed**:
+
+```bash
+go install github.com/cluas/slackctl/cmd/slackctl@latest
+```
+
+- **Manual (any OS)**: download the archive for your OS/arch from the [releases page](https://github.com/cluas/slackctl/releases), extract it, and put `slackctl` (or `slackctl.exe` on Windows) on your `PATH`.
 
 ## CRITICAL: Bash command formatting rules
 
@@ -42,25 +63,42 @@ Claude Code's permission checker has security heuristics that force manual appro
 
 ## Quick start (auth)
 
-Authentication is automatic on macOS (Slack Desktop first, then Chrome/Firefox fallbacks).
+Auth auto-detection works on **macOS, Linux, and Windows**. It reads credentials
+straight from local apps (no browser automation), trying Slack Desktop first,
+then Chrome, then Firefox. Cookie decryption is handled per-platform: macOS
+Keychain, Linux Secret Service (`secret-tool`), and Windows DPAPI.
+
+Per-source platform support:
+
+| Source (`auth import-*`) | macOS | Linux | Windows |
+|--------------------------|-------|-------|---------|
+| `import-desktop` (Slack Desktop) | ✅ | ✅ | ✅ |
+| `import-chrome` | ✅ | ✅ | ✅ |
+| `import-brave` | ✅ | ✅ | ✅ |
+| `import-firefox` | ✅ | ✅ | ✅ |
+
+Notes: On Linux, Chrome/Brave/Slack cookie decryption reads the key from the
+desktop keyring via `secret-tool` (install `libsecret-tools` / `libsecret`),
+falling back to the default `peanuts` password when no keyring is configured.
+Firefox `cookies.sqlite` is plaintext on every platform.
 
 If credentials aren't available, run one of:
 
-- Slack Desktop import (macOS):
+- Slack Desktop import (macOS/Linux/Windows):
 
 ```bash
 slackctl auth import-desktop
 slackctl auth test
 ```
 
-- Firefox fallback:
+- Firefox fallback (macOS/Linux/Windows):
 
 ```bash
 slackctl auth import-firefox
 slackctl auth test
 ```
 
-- Chrome fallback:
+- Chrome fallback (macOS/Linux/Windows):
 
 ```bash
 slackctl auth import-chrome

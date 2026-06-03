@@ -62,7 +62,7 @@ func extractFromChromeDB() *ChromeExtracted {
 		debugAuth("Chrome DB: trying profile %s", profileDir)
 
 		// Extract teams from LevelDB (Local Storage)
-		teams := extractTeamsFromChromeLevelDB(profileDir)
+		teams := extractTeamsFromChromiumLevelDB(profileDir)
 		if len(teams) == 0 {
 			debugAuth("Chrome DB: no teams in %s", profileDir)
 			continue
@@ -70,7 +70,7 @@ func extractFromChromeDB() *ChromeExtracted {
 		debugAuth("Chrome DB: found %d teams", len(teams))
 
 		// Extract cookie from Cookies DB
-		cookieD := extractCookieDFromChromeDB(profileDir)
+		cookieD := extractCookieDFromChromiumProfile(profileDir, GetSafeStoragePasswords)
 		if cookieD == "" {
 			debugAuth("Chrome DB: no cookie_d in %s", profileDir)
 			continue
@@ -97,6 +97,12 @@ func chromeProfileDirs() []string {
 		}
 		base = filepath.Join(localAppData, "Google", "Chrome", "User Data")
 	}
+	return chromiumProfileDirs(base)
+}
+
+// chromiumProfileDirs returns the existing profile dirs (Default + Profile N)
+// under a Chromium-family browser's "User Data" base directory.
+func chromiumProfileDirs(base string) []string {
 	if base == "" {
 		return nil
 	}
@@ -118,7 +124,7 @@ func chromeProfileDirs() []string {
 	return dirs
 }
 
-func extractTeamsFromChromeLevelDB(profileDir string) []BrowserTeam {
+func extractTeamsFromChromiumLevelDB(profileDir string) []BrowserTeam {
 	lsDir := filepath.Join(profileDir, "Local Storage", "leveldb")
 	if _, err := os.Stat(lsDir); err != nil {
 		return nil
@@ -127,7 +133,7 @@ func extractTeamsFromChromeLevelDB(profileDir string) []BrowserTeam {
 	// Snapshot and read LevelDB
 	snapDir, err := snapshotLevelDB(lsDir)
 	if err != nil {
-		debugAuth("Chrome LevelDB snapshot failed: %v", err)
+		debugAuth("Chromium LevelDB snapshot failed: %v", err)
 		return nil
 	}
 	defer os.RemoveAll(snapDir)
@@ -135,13 +141,18 @@ func extractTeamsFromChromeLevelDB(profileDir string) []BrowserTeam {
 	// Use goleveldb to read
 	teams, err := readTeamsFromLevelDBDir(snapDir)
 	if err != nil {
-		debugAuth("Chrome LevelDB read failed: %v", err)
+		debugAuth("Chromium LevelDB read failed: %v", err)
 		return nil
 	}
 	return teams
 }
 
-func extractCookieDFromChromeDB(profileDir string) string {
+// extractCookieDFromChromiumProfile reads and decrypts the Slack 'd' cookie from
+// a Chromium-family profile dir. passwordsFor yields macOS/Linux Safe Storage
+// candidates for a given cookie prefix; on Windows the cookie is decrypted via
+// DPAPI (the "Local State" file in the profile's parent dir) and passwordsFor is
+// unused.
+func extractCookieDFromChromiumProfile(profileDir string, passwordsFor func(prefix string) []string) string {
 	cookiesDB := filepath.Join(profileDir, "Cookies")
 	if _, err := os.Stat(cookiesDB); err != nil {
 		return ""
@@ -177,15 +188,27 @@ func extractCookieDFromChromeDB(profileDir string) string {
 	if len(encrypted) >= 3 {
 		prefix = string(encrypted[:3])
 	}
+	xoxdRe := regexp.MustCompile(`xoxd-[A-Za-z0-9%/+_=.-]+`)
+
+	// Windows: cookies are DPAPI + AES-256-GCM, keyed off the "Local State" file
+	// in the browser's "User Data" dir (the parent of the profile dir).
+	if runtime.GOOS == "windows" && (prefix == "v10" || prefix == "v11") {
+		decrypted, err := DecryptCookieWindows(encrypted, filepath.Dir(profileDir))
+		if err != nil {
+			debugAuth("Chromium cookie DB: Windows DPAPI decrypt failed: %v", err)
+			return ""
+		}
+		return xoxdRe.FindString(decrypted)
+	}
+
 	data := encrypted
 	if prefix == "v10" || prefix == "v11" {
 		data = encrypted[3:]
 	}
 
-	// Get Chrome Safe Storage passwords
-	passwords := GetSafeStoragePasswords(prefix)
-	debugAuth("Chrome cookie DB: got %d passwords, prefix=%q", len(passwords), prefix)
-	xoxdRe := regexp.MustCompile(`xoxd-[A-Za-z0-9%/+_=.-]+`)
+	// macOS/Linux: password-based AES-128-CBC via Safe Storage passwords.
+	passwords := passwordsFor(prefix)
+	debugAuth("Chromium cookie DB: got %d passwords, prefix=%q", len(passwords), prefix)
 	iterations := 1003
 	if runtime.GOOS == "linux" {
 		iterations = 1
