@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 // MessageSummary is the core message data structure.
@@ -124,6 +125,12 @@ func parseMessage(msg map[string]any, channelID string) *MessageSummary {
 		ThreadTS:  stringVal(msg, "thread_ts"),
 	}
 
+	// Bot/app messages (e.g. monitoring alert cards) often carry no plain
+	// "text" and render entirely through Block Kit blocks/attachments.
+	if summary.Text == "" {
+		summary.Text = renderBlockKitText(msg)
+	}
+
 	if rc, ok := msg["reply_count"].(float64); ok {
 		summary.ReplyCount = int(rc)
 	}
@@ -213,6 +220,96 @@ func (c *Client) RemoveReaction(channelID, ts, name string) (map[string]any, err
 		"timestamp": ts,
 		"name":      name,
 	})
+}
+
+// renderBlockKitText reconstructs readable text from a message's Block Kit
+// blocks and/or legacy attachments, for messages that carry no plain "text"
+// (typically monitoring/alert cards posted by bots and apps).
+func renderBlockKitText(msg map[string]any) string {
+	var parts []string
+	if blocks, ok := msg["blocks"].([]any); ok {
+		if s := renderBlocks(blocks); s != "" {
+			parts = append(parts, s)
+		}
+	}
+	if attachments, ok := msg["attachments"].([]any); ok {
+		for _, a := range attachments {
+			if s := renderAttachment(toRecord(a)); s != "" {
+				parts = append(parts, s)
+			}
+		}
+	}
+	return strings.Join(parts, "\n---\n")
+}
+
+// renderAttachment renders a single attachment: modern attachments carry
+// their own "blocks", while legacy ones use pretext/title/text/fields.
+func renderAttachment(att map[string]any) string {
+	if blocks, ok := att["blocks"].([]any); ok {
+		if s := renderBlocks(blocks); s != "" {
+			return s
+		}
+	}
+	var lines []string
+	for _, key := range []string{"pretext", "title", "text"} {
+		if v := stringVal(att, key); v != "" {
+			lines = append(lines, v)
+		}
+	}
+	if fields, ok := att["fields"].([]any); ok {
+		for _, f := range fields {
+			fm := toRecord(f)
+			title, value := stringVal(fm, "title"), stringVal(fm, "value")
+			switch {
+			case title != "" && value != "":
+				lines = append(lines, fmt.Sprintf("%s: %s", title, value))
+			case value != "":
+				lines = append(lines, value)
+			}
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// renderBlocks joins the readable text of section/header/context blocks.
+// Structural blocks (divider, actions, input, image, ...) carry no message
+// text and are skipped.
+func renderBlocks(blocks []any) string {
+	var lines []string
+	for _, b := range blocks {
+		bm := toRecord(b)
+		switch stringVal(bm, "type") {
+		case "section", "header":
+			if v := renderTextObject(bm["text"]); v != "" {
+				lines = append(lines, v)
+			}
+		case "context":
+			var elems []string
+			for _, e := range getArray(bm, "elements") {
+				if v := renderTextObject(e); v != "" {
+					elems = append(elems, v)
+				}
+			}
+			if len(elems) > 0 {
+				lines = append(lines, strings.Join(elems, "  "))
+			}
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// renderTextObject extracts text from a Block Kit text object
+// ({"type": "mrkdwn"|"plain_text", "text": "..."}).
+func renderTextObject(v any) string {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return ""
+	}
+	switch stringVal(m, "type") {
+	case "mrkdwn", "plain_text":
+		return stringVal(m, "text")
+	}
+	return ""
 }
 
 // --- helpers ---
