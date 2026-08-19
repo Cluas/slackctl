@@ -5,6 +5,7 @@ description: |
   - Reading a Slack message or thread (given a URL or channel+ts)
   - Browsing recent channel messages / channel history
   - Getting all unread messages across channels
+  - Listing saved-for-later messages (Slack "Later" list)
   - Searching Slack messages or files
   - Sending, editing, or deleting a message; adding/removing reactions
   - Uploading files/images to channels or threads (including stdin piping)
@@ -15,7 +16,7 @@ description: |
   - Looking up Slack users
   - Marking channels/DMs as read
   - Opening DM or group DM channels
-  Triggers: "slack message", "slack thread", "slack URL", "read slack", "reply on slack", "search slack", "channel history", "recent messages", "mark as read", "unread messages", "unread", "what did I miss", "upload file", "send image", "download file", "slack file", "attach file"
+  Triggers: "slack message", "slack thread", "slack URL", "read slack", "reply on slack", "search slack", "channel history", "recent messages", "mark as read", "unread messages", "unread", "what did I miss", "saved messages", "saved for later", "later list", "upload file", "send image", "download file", "slack file", "attach file"
 ---
 
 # Slack automation with `slackctl`
@@ -167,6 +168,28 @@ Note: For Enterprise Grid, use `--workspace` with the enterprise URL for unread 
 ```bash
 slackctl message unread --workspace longbridge-group --fetch
 ```
+
+## Get saved-for-later messages (Later)
+
+List the user's saved messages (Slack's "Later" list):
+
+```bash
+slackctl message saved --limit 20
+```
+
+Also fetch the actual saved message content:
+
+```bash
+slackctl message saved --fetch
+```
+
+Filter by state (`saved` = in progress, `completed`, `archived`; default is all):
+
+```bash
+slackctl message saved --filter saved --fetch
+```
+
+For Enterprise Grid, the enterprise workspace is used automatically when needed.
 
 ## Send, edit, delete, or react
 

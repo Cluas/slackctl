@@ -18,6 +18,7 @@ func newMessageCmd() *cobra.Command {
 		newMessageGetCmd(),
 		newMessageListCmd(),
 		newMessageUnreadCmd(),
+		newMessageSavedCmd(),
 		newMessageSendCmd(),
 		newMessageEditCmd(),
 		newMessageDeleteCmd(),
@@ -274,6 +275,64 @@ func newMessageUnreadCmd() *cobra.Command {
 	cmd.Flags().IntVar(&limit, "limit", 50, "Max channels to return")
 	cmd.Flags().BoolVar(&fetchMessages, "fetch", false, "Also fetch unread message content")
 	cmd.Flags().IntVar(&maxPerChannel, "max-per-channel", 10, "Max messages per channel (with --fetch)")
+	return cmd
+}
+
+func newMessageSavedCmd() *cobra.Command {
+	var limit int
+	var filter string
+	var fetchMessages bool
+	cmd := &cobra.Command{
+		Use:   "saved",
+		Short: "List saved-for-later messages (Later)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, _, err := auth.ResolveClient(workspaceFlag)
+			if err != nil {
+				return err
+			}
+			result, err := client.FetchSavedItems(filter, limit)
+			if err != nil {
+				// Enterprise Grid: saved.list only works on enterprise org URL.
+				// Auto-retry with enterprise workspace if available.
+				errMsg := err.Error()
+				if strings.Contains(errMsg, "team_is_restricted") || strings.Contains(errMsg, "enterprise_is_restricted") {
+					eClient, _, eErr := auth.ResolveEnterpriseClient()
+					if eErr == nil && eClient != nil {
+						result, err = eClient.FetchSavedItems(filter, limit)
+					}
+				}
+				if err != nil {
+					return err
+				}
+			}
+			for i := range result.Items {
+				if result.Items[i].ChannelID == "" {
+					continue
+				}
+				name, _ := client.ResolveChannelName(result.Items[i].ChannelID)
+				result.Items[i].ChannelName = name
+				if fetchMessages {
+					msg, err := client.FetchMessage(result.Items[i].ChannelID, result.Items[i].TS)
+					if err != nil {
+						continue
+					}
+					// Thread replies aren't in channel history; fetch via conversations.replies.
+					if msg.TS != result.Items[i].TS {
+						replies, err := client.FetchThread(result.Items[i].ChannelID, result.Items[i].TS, 1)
+						if err != nil || len(replies) == 0 || replies[0].TS != result.Items[i].TS {
+							continue
+						}
+						msg = &replies[0]
+					}
+					result.Items[i].Message = msg
+				}
+			}
+			return printJSON(result)
+		},
+	}
+	cmd.Flags().IntVar(&limit, "limit", 50, "Max items to return")
+	cmd.Flags().StringVar(&filter, "filter", "", "Filter: saved (in progress), completed, or archived (default: all)")
+	cmd.Flags().BoolVar(&fetchMessages, "fetch", false, "Also fetch saved message content")
 	return cmd
 }
 
