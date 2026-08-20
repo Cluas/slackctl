@@ -23,6 +23,27 @@ All commands print JSON to stdout.
 }
 ```
 
+Bot messages have no `user`. They name their author in `user_name` instead.
+Some messages put their body in attachments while `text` holds only a short
+line. Attachment bodies are opt-in via `--attachments`:
+
+```json
+{
+  "channel_id": "C123",
+  "ts": "1700000000.000000",
+  "user_name": "deploy-bot",
+  "text": "deploy finished",
+  "attachments": [
+    {"title": "Status", "text": "all checks passed"},
+    {"title": "Next", "text": "promote to staging"}
+  ]
+}
+```
+
+The `attachments` field is only present when `--attachments` is used. It
+projects only the `title` and `text` of each attachment; attachments with
+neither (such as link unfurls, which render through `blocks`) are omitted.
+
 - `message list` returns an array of message objects:
 
 ```json

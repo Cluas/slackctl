@@ -10,8 +10,9 @@ import (
 var version = "dev"
 
 var (
-	workspaceFlag string
-	verboseFlag   bool
+	workspaceFlag   string
+	verboseFlag     bool
+	attachmentsFlag bool
 )
 
 func NewRootCmd() *cobra.Command {
@@ -23,12 +24,17 @@ func NewRootCmd() *cobra.Command {
 			if verboseFlag {
 				os.Setenv("SLACKCTL_DEBUG", "1")
 			}
+			if attachmentsFlag {
+				os.Setenv("SLACKCTL_ATTACHMENTS", "1")
+			}
 		},
 	}
 	root.PersistentFlags().StringVar(&workspaceFlag, "workspace", "",
 		"Workspace selector (full URL or unique substring)")
 	root.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "V", false,
 		"Enable debug logging")
+	root.PersistentFlags().BoolVar(&attachmentsFlag, "attachments", false,
+		"Include message attachment title and text")
 
 	root.AddCommand(
 		newAuthCmd(),

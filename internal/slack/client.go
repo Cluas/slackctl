@@ -53,6 +53,12 @@ func isDebug() bool {
 	return os.Getenv("SLACKCTL_DEBUG") != ""
 }
 
+// includeAttachments reports whether message attachment bodies should be
+// projected. Set by the --attachments flag.
+func includeAttachments() bool {
+	return os.Getenv("SLACKCTL_ATTACHMENTS") != ""
+}
+
 func debugLog(format string, args ...any) {
 	if isDebug() {
 		log.Printf("[DEBUG] "+format, args...)
