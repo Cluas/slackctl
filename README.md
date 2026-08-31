@@ -91,7 +91,8 @@ slackctl
 │   ├── send <target> <text># Post a message
 │   ├── edit <target> <ts>  # Edit a message
 │   ├── delete <target> [ts]# Delete a message
-│   └── react add|remove    # Manage reactions
+│   ├── react add|remove    # Manage reactions
+│   └── saved               # List saved-for-later messages (Later)
 ├── canvas
 │   └── get <url-or-id>     # Fetch canvas as Markdown
 ├── search
