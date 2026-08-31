@@ -147,7 +147,11 @@ slackctl message list "https://workspace.slack.com/archives/C123/p17000000000000
 ```bash
 slackctl message list "general" --limit 20
 slackctl message list "C0123ABC" --limit 10
+slackctl --attachments message list "general" --limit 20
 ```
+
+`--attachments` is off by default. Pass it when the message body lives in
+attachments rather than `text`.
 
 ## Get unread messages
 

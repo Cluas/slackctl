@@ -9,17 +9,25 @@ import (
 
 // MessageSummary is the core message data structure.
 type MessageSummary struct {
-	ChannelID   string         `json:"channel_id,omitempty"`
-	ChannelName string         `json:"channel_name,omitempty"`
-	ThreadTS    string         `json:"thread_ts,omitempty"`
-	TS          string         `json:"ts"`
-	User        string         `json:"user,omitempty"`
-	UserName    string         `json:"user_name,omitempty"`
-	Text        string         `json:"text,omitempty"`
-	Reactions   []Reaction     `json:"reactions,omitempty"`
-	Files       []FileSummary  `json:"files,omitempty"`
-	ReplyCount  int            `json:"reply_count,omitempty"`
-	Permalink   string         `json:"permalink,omitempty"`
+	ChannelID   string              `json:"channel_id,omitempty"`
+	ChannelName string              `json:"channel_name,omitempty"`
+	ThreadTS    string              `json:"thread_ts,omitempty"`
+	TS          string              `json:"ts"`
+	User        string              `json:"user,omitempty"`
+	UserName    string              `json:"user_name,omitempty"`
+	Text        string              `json:"text,omitempty"`
+	Attachments []AttachmentSummary `json:"attachments,omitempty"`
+	Reactions   []Reaction          `json:"reactions,omitempty"`
+	Files       []FileSummary       `json:"files,omitempty"`
+	ReplyCount  int                 `json:"reply_count,omitempty"`
+	Permalink   string              `json:"permalink,omitempty"`
+}
+
+// AttachmentSummary projects the content-bearing fields of a legacy
+// attachment. Color, id, and other presentation fields are dropped.
+type AttachmentSummary struct {
+	Title string `json:"title,omitempty"`
+	Text  string `json:"text,omitempty"`
 }
 
 type Reaction struct {
@@ -121,14 +129,34 @@ func parseMessage(msg map[string]any, channelID string) *MessageSummary {
 		ChannelID: channelID,
 		TS:        stringVal(msg, "ts"),
 		User:      stringVal(msg, "user"),
-		Text:      stringVal(msg, "text"),
-		ThreadTS:  stringVal(msg, "thread_ts"),
+		// Bot messages carry no "user"; they name their author in "username".
+		UserName: stringVal(msg, "username"),
+		Text:     stringVal(msg, "text"),
+		ThreadTS: stringVal(msg, "thread_ts"),
 	}
 
 	// Bot/app messages (e.g. monitoring alert cards) often carry no plain
 	// "text" and render entirely through Block Kit blocks/attachments.
 	if summary.Text == "" {
 		summary.Text = renderBlockKitText(msg)
+	}
+
+	// Attachment bodies roughly double the size of a channel's output, so they
+	// are opt-in via --attachments.
+	if atts, ok := msg["attachments"].([]any); ok && includeAttachments() {
+		for _, a := range atts {
+			am := toRecord(a)
+			att := AttachmentSummary{
+				Title: stringVal(am, "title"),
+				Text:  stringVal(am, "text"),
+			}
+			// Link unfurls carry their content in "blocks" and would
+			// otherwise project as an empty object.
+			if att.Title == "" && att.Text == "" {
+				continue
+			}
+			summary.Attachments = append(summary.Attachments, att)
+		}
 	}
 
 	if rc, ok := msg["reply_count"].(float64); ok {

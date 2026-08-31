@@ -25,6 +25,7 @@ Run `slackctl --help` (or `slackctl <command> --help`) for the full option list.
   - Options:
     - `--thread-ts <seconds>.<micros>` (switches to thread mode; fetches replies)
     - `--limit <n>` (default `20`)
+    - `--attachments` (global; include attachment title and text)
 
 - `slackctl message unread`
   - Lists channels with unread messages using `client.counts` API.
@@ -102,3 +103,4 @@ Run `slackctl --help` (or `slackctl <command> --help`) for the full option list.
 ## Global flags
 
 - `--workspace <url-or-unique-substring>` — select workspace (needed when multiple workspaces configured and using channel names)
+- `--attachments` — include message attachment `title` and `text` (off by default; applies to `message get`, `message list`, `message unread --fetch`, and `search messages`)
