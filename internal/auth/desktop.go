@@ -335,9 +335,18 @@ func extractCookieDFromCookiesDB(cookiesPath, slackDataDir string) (string, erro
 
 	prefix := string(encrypted[:3])
 
+	xoxdRe := regexp.MustCompile(`xoxd-[A-Za-z0-9%/+_=.-]+`)
+
 	// Windows: DPAPI
 	if runtime.GOOS == "windows" && (prefix == "v10" || prefix == "v11") {
-		return DecryptCookieWindows(encrypted, slackDataDir)
+		decrypted, err := DecryptCookieWindows(encrypted, slackDataDir)
+		if err != nil {
+			return "", err
+		}
+		if match := xoxdRe.FindString(decrypted); match != "" {
+			return match, nil
+		}
+		return "", fmt.Errorf("decrypted Slack 'd' cookie did not contain an xoxd- token")
 	}
 
 	// macOS/Linux: password-based AES-128-CBC
@@ -351,7 +360,6 @@ func extractCookieDFromCookiesDB(cookiesPath, slackDataDir string) (string, erro
 		iterations = 1
 	}
 	passwords := GetSafeStoragePasswords(prefix)
-	xoxdRe := regexp.MustCompile(`xoxd-[A-Za-z0-9%/+_=.-]+`)
 
 	for _, pw := range passwords {
 		decrypted, err := DecryptChromiumCookie(data, pw, iterations)
