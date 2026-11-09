@@ -1,6 +1,7 @@
 package listen
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -171,5 +172,23 @@ func TestParseTypes(t *testing.T) {
 	got := ParseTypes(" message, reaction_added ,,")
 	if len(got) != 2 || !got["message"] || !got["reaction_added"] {
 		t.Fatalf("got %v", got)
+	}
+}
+
+func TestApplyKeepsAttachmentsAndBlocks(t *testing.T) {
+	ev := mustParse(t, `{"type":"message","channel":"D1","bot_id":"B1","text":"1 minute until","ts":"10.1",`+
+		`"attachments":[{"actions":[{"text":"Join","url":"https://meet.google.com/abc-defg-hij"}]}],"blocks":[{"type":"section"}]}`)
+	rec, ok := baseFilter().Apply(ev)
+	if !ok {
+		t.Fatal("expected emit")
+	}
+	out, err := json.Marshal(rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"attachments":[{"actions":[{"text":"Join","url":"https://meet.google.com/abc-defg-hij"}]}]`, `"blocks":[{"type":"section"}]`} {
+		if !strings.Contains(string(out), want) {
+			t.Fatalf("missing %s in %s", want, out)
+		}
 	}
 }

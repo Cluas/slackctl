@@ -25,7 +25,10 @@ type RawEvent struct {
 	IsMPIM   *bool           `json:"is_mpim"`
 	ReplyTo  *int64          `json:"reply_to"`
 	URL      string          `json:"url"`
-	Error    *struct {
+	// Attachments / Blocks are passed through untouched: bot messages keep their button URLs there.
+	Attachments json.RawMessage `json:"attachments"`
+	Blocks      json.RawMessage `json:"blocks"`
+	Error       *struct {
 		Code int    `json:"code"`
 		Msg  string `json:"msg"`
 	} `json:"error"`
@@ -80,6 +83,9 @@ type Record struct {
 	IsMention bool   `json:"is_mention"`
 	IsDM      bool   `json:"is_dm"`
 	EventTS   string `json:"event_ts,omitempty"`
+	// rawJSON keeps Record comparable while still emitting the original JSON.
+	Attachments rawJSON `json:"attachments,omitempty"`
+	Blocks      rawJSON `json:"blocks,omitempty"`
 }
 
 // Filter controls which events are emitted.
@@ -148,15 +154,17 @@ func (f Filter) project(ev RawEvent) Record {
 	channel := ev.ChannelID()
 	user := src.UserID()
 	rec := Record{
-		Type:     ev.Type,
-		Subtype:  ev.Subtype,
-		Channel:  channel,
-		TS:       firstNonEmpty(src.TS, ev.TS),
-		ThreadTS: firstNonEmpty(src.ThreadTS, ev.ThreadTS),
-		User:     user,
-		BotID:    firstNonEmpty(src.BotID, ev.BotID),
-		Text:     truncateRunes(src.Text, MaxTextRunes),
-		EventTS:  ev.EventTS,
+		Type:        ev.Type,
+		Subtype:     ev.Subtype,
+		Channel:     channel,
+		TS:          firstNonEmpty(src.TS, ev.TS),
+		ThreadTS:    firstNonEmpty(src.ThreadTS, ev.ThreadTS),
+		User:        user,
+		BotID:       firstNonEmpty(src.BotID, ev.BotID),
+		Text:        truncateRunes(src.Text, MaxTextRunes),
+		EventTS:     ev.EventTS,
+		Attachments: rawJSON(src.Attachments),
+		Blocks:      rawJSON(src.Blocks),
 	}
 	rec.FromSelf = f.SelfID != "" && user == f.SelfID
 	rec.IsDM = strings.HasPrefix(channel, "D") || ev.ChannelT == "im"
@@ -204,4 +212,14 @@ func truncateRunes(s string, max int) string {
 		return s
 	}
 	return string(r[:max])
+}
+
+// rawJSON is a JSON fragment held as a string so structs containing it stay comparable.
+type rawJSON string
+
+func (r rawJSON) MarshalJSON() ([]byte, error) {
+	if r == "" {
+		return []byte("null"), nil
+	}
+	return []byte(r), nil
 }
