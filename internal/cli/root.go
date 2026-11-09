@@ -44,6 +44,7 @@ func NewRootCmd() *cobra.Command {
 		newUserCmd(),
 		newChannelCmd(),
 		newFileCmd(),
+		newListenCmd(),
 	)
 	return root
 }
