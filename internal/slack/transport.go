@@ -21,14 +21,24 @@ var tlsClientIDs = map[AuthSource]*utls.ClientHelloID{
 
 // newHTTPClient creates an http.Client with a TLS fingerprint matching the auth source.
 func newHTTPClient(source AuthSource) *http.Client {
-	helloID, ok := tlsClientIDs[source]
-	if !ok {
-		helloID = &utls.HelloChrome_120
-	}
 	return &http.Client{
 		Timeout:   30 * time.Second,
-		Transport: newUTLSTransport(helloID),
+		Transport: newUTLSTransport(helloIDFor(source)),
 	}
+}
+
+// newStreamingHTTPClient is like newHTTPClient but without an overall
+// timeout, for long-lived connections (websocket) whose lifetime is
+// controlled by a context instead.
+func newStreamingHTTPClient(source AuthSource) *http.Client {
+	return &http.Client{Transport: newUTLSTransport(helloIDFor(source))}
+}
+
+func helloIDFor(source AuthSource) *utls.ClientHelloID {
+	if helloID, ok := tlsClientIDs[source]; ok {
+		return helloID
+	}
+	return &utls.HelloChrome_120
 }
 
 type utlsTransport struct {

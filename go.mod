@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown/v2 v2.5.0
+	github.com/coder/websocket v1.8.14
 	github.com/refraction-networking/utls v1.8.2
 	github.com/spf13/cobra v1.10.2
 	github.com/syndtr/goleveldb v1.0.0
