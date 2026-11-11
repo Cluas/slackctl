@@ -149,9 +149,15 @@ slackctl listen | jq -r --unbuffered \
 | Flag | Default | Description |
 |---|---|---|
 | `--types` | `message` | Comma-separated event types to emit; empty string = all |
-| `--mentions-or-dms` | `false` | Only DMs (`D…` / `channel_type: im`), group DMs (`is_mpim`, resolved via `conversations.info` and cached), or text containing `<@your-id>` |
-| `--include-bots` | `true` | Include bot messages (`--include-bots=false` to drop) |
+| `--mentions-or-dms` | `false` | Only DMs (`D…` / `channel_type: im`), group DMs (`is_mpim`, resolved via `conversations.info` and cached), or text that mentions you exactly (`<@your-id>` or `<@your-id\|label>`) |
+| `--include-bots` | `true` | Include bot messages (`--include-bots=false` to drop). A message counts as a bot message if it has a `bot_id` or subtype `bot_message`, so app messages with an empty subtype are dropped too |
 | `--all-subtypes` | `false` | Also emit `message_changed`, `message_deleted`, joins, etc. |
+
+All filtering happens locally: Slack streams every event your account can
+see over the websocket, and `slackctl` decides what to print. RTM has no
+per-channel subscription, so filters reduce output, not network traffic; in a
+large workspace with many joined channels, expect the full event volume to be
+received even with `--mentions-or-dms`.
 
 By default only message subtypes that carry new content are emitted: plain
 messages, `bot_message`, `thread_broadcast`, `file_share`, `me_message`.
