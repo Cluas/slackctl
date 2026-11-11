@@ -309,6 +309,9 @@ slackctl listen | jq -c --unbuffered --arg ts 1700000000.000100 'select(.thread_
      `message list` (thread: `--thread-ts`) or `message unread --fetch`.
    - `_auth_error`: the process has exited. Run `slackctl auth import-desktop`
      (or another `auth import-*`), `slackctl auth test`, then start again.
+   - `_connect_error`: the process has exited and retrying will not help
+     (Enterprise Grid org-level sessions are not supported). Fall back to
+     polling with `message list` / `message unread`.
 4. Act on events with the regular commands (`message send --thread-ts`,
    `message react add`, ...); `listen` itself is read-only.
 5. Done when the awaited event has arrived or the user stops watching: stop the

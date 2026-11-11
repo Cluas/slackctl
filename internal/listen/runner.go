@@ -28,6 +28,10 @@ const (
 // ErrAuth is returned by Run when Slack rejects the credentials.
 var ErrAuth = errors.New("slack authentication failed")
 
+// ErrUnsupported is returned by Run when Slack refuses rtm.connect for a
+// reason that retrying cannot fix (e.g. an Enterprise Grid org-level session).
+var ErrUnsupported = errors.New("real-time connection not available")
+
 // ErrOutput is returned by Run when writing an event to stdout fails.
 var ErrOutput = errors.New("write output failed")
 
@@ -90,7 +94,8 @@ func NewListener(conn Connector, filter Filter, out, log io.Writer) *Listener {
 func (l *Listener) SetPingInterval(d time.Duration) { l.pingInterval = d }
 
 // Run connects and streams events until ctx is cancelled (returns nil),
-// authentication fails (returns ErrAuth), or writing output fails (returns
+// authentication fails (returns ErrAuth), Slack refuses rtm.connect
+// permanently (returns ErrUnsupported), or writing output fails (returns
 // ErrOutput). All other errors are logged and followed by an
 // exponential-backoff reconnect.
 //
@@ -129,6 +134,10 @@ func (l *Listener) connectLoop(ctx context.Context) error {
 				if IsAuthError(err) {
 					l.enqueue(ctx, outItem{line: controlRecord{Type: "_auth_error", Error: err.Error(), At: nowRFC3339()}})
 					return fmt.Errorf("%w: %v", ErrAuth, err)
+				}
+				if IsUnsupportedError(err) {
+					l.enqueue(ctx, outItem{line: controlRecord{Type: "_connect_error", Error: err.Error(), At: nowRFC3339()}})
+					return fmt.Errorf("%w: %v", ErrUnsupported, err)
 				}
 				l.logf("rtm.connect failed: %v", err)
 				l.backoff(ctx, &attempt)
@@ -268,7 +277,8 @@ func (l *Listener) emitConnected(ctx context.Context, attempt int) {
 	l.enqueue(ctx, outItem{line: controlRecord{Type: typ, Self: &self, Via: "rtm.connect", Attempts: attempt, At: nowRFC3339()}})
 }
 
-// controlRecord is a synthetic line (_connected / _reconnected / _auth_error).
+// controlRecord is a synthetic line (_connected / _reconnected / _auth_error /
+// _connect_error).
 type controlRecord struct {
 	Type     string         `json:"type"`
 	Self     *slack.RTMInfo `json:"self,omitempty"`
@@ -379,6 +389,16 @@ func IsAuthError(err error) bool {
 		}
 	}
 	return false
+}
+
+// IsUnsupportedError reports whether rtm.connect was refused for a reason
+// that will not go away on retry. enterprise_is_restricted is what Slack
+// returns for Enterprise Grid org-level sessions.
+func IsUnsupportedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "enterprise_is_restricted")
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) {

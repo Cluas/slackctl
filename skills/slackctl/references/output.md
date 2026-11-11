@@ -198,6 +198,7 @@ The `messages` field is only present when `--fetch` is used.
 {"type":"_connected","self":{"id":"U123","name":"alice","team_id":"T123","team_name":"My Team"},"via":"rtm.connect","at":"2026-01-01T00:00:00Z"}
 {"type":"_reconnected","self":{"id":"U123","name":"alice","team_id":"T123","team_name":"My Team"},"via":"rtm.connect","attempts":2,"at":"2026-01-01T00:05:00Z"}
 {"type":"_auth_error","error":"Slack API error: invalid_auth","at":"2026-01-01T00:00:00Z"}
+{"type":"_connect_error","error":"Slack API error: enterprise_is_restricted","at":"2026-01-01T00:00:00Z"}
 ```
 
 ## Auth shapes
