@@ -177,6 +177,25 @@ The `messages` field is only present when `--fetch` is used.
 }
 ```
 
+## Listen shapes
+
+`listen` prints one JSON object per line (JSON Lines), not an array.
+
+- Message event (`text` capped at 2000 chars; `attachments` / `blocks` passed through raw when present; for `message_changed` the content fields come from the edited message):
+
+```json
+{"type":"message","channel":"C123","ts":"1700000000.000200","thread_ts":"1700000000.000100","user":"U456","text":"looks good <@U123>","from_self":false,"is_mention":true,"is_dm":false,"event_ts":"1700000000.000200"}
+```
+
+- Other event types (e.g. `reaction_added` with `--types`) use the same record fields, filled only from top-level `channel` / `user` / `ts` / `text` etc.; nested data such as `reaction_added`'s `item.channel` is not extracted.
+- Control lines:
+
+```json
+{"type":"_connected","self":{"id":"U123","name":"alice","team_id":"T123","team_name":"My Team"},"via":"rtm.connect","at":"2026-01-01T00:00:00Z"}
+{"type":"_reconnected","self":{"id":"U123","name":"alice","team_id":"T123","team_name":"My Team"},"via":"rtm.connect","attempts":2,"at":"2026-01-01T00:05:00Z"}
+{"type":"_auth_error","error":"Slack API error: invalid_auth","at":"2026-01-01T00:00:00Z"}
+```
+
 ## Auth shapes
 
 - `auth test` returns the raw Slack `auth.test` response:

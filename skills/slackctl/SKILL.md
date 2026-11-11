@@ -16,7 +16,8 @@ description: |
   - Looking up Slack users
   - Marking channels/DMs as read
   - Opening DM or group DM channels
-  Triggers: "slack message", "slack thread", "slack URL", "read slack", "reply on slack", "search slack", "channel history", "recent messages", "mark as read", "unread messages", "unread", "what did I miss", "saved messages", "saved for later", "later list", "upload file", "send image", "download file", "slack file", "attach file"
+  - Listening for new messages in real time (waiting for a reply, watching for mentions/DMs)
+  Triggers: "slack message", "slack thread", "slack URL", "read slack", "reply on slack", "search slack", "channel history", "recent messages", "mark as read", "unread messages", "unread", "what did I miss", "saved messages", "saved for later", "later list", "upload file", "send image", "download file", "slack file", "attach file", "listen", "watch slack", "wait for a reply", "notify me when"
 ---
 
 # Slack automation with `slackctl`
@@ -281,6 +282,43 @@ slackctl user get "@alice"
 slackctl user get U01AAAA
 ```
 
+## Listen for new messages (real time)
+
+`slackctl listen` holds a websocket open and prints one JSON object per line as
+events arrive. It never exits on its own, so it is a **background** task:
+
+1. Start it with your harness's background mode (Claude Code: Bash with
+   `run_in_background: true`), using the narrowest flags for the goal:
+
+```bash
+slackctl listen --mentions-or-dms
+```
+
+   - Someone pinging or DMing you: `--mentions-or-dms`
+   - Replies in one thread: plain `slackctl listen`, then match `channel` and
+     `thread_ts` with `jq --arg` (keeps the command free of double quotes):
+
+```bash
+slackctl listen | jq -c --unbuffered --arg ts 1700000000.000100 'select(.thread_ts==$ts)'
+```
+
+2. Ready when the first line is `{"type":"_connected",...}`; `self.id` is your
+   user id. Read new lines from the task output as they arrive.
+3. Handle control lines:
+   - `_reconnected`: events during the gap are not replayed. Backfill with
+     `message list` (thread: `--thread-ts`) or `message unread --fetch`.
+   - `_auth_error`: the process has exited. Run `slackctl auth import-desktop`
+     (or another `auth import-*`), `slackctl auth test`, then start again.
+4. Act on events with the regular commands (`message send --thread-ts`,
+   `message react add`, ...); `listen` itself is read-only.
+5. Done when the awaited event has arrived or the user stops watching: stop the
+   background task.
+
+Messages from you are included with `"from_self": true`; skip them when waiting
+for someone else. Filters run locally (Slack streams every event the account
+can see), so they cut output, not traffic. Flags: [commands.md](references/commands.md#listen);
+line shapes: [output.md](references/output.md#listen-shapes).
+
 ## Multi-workspace
 
 If you have multiple workspaces, pass `--workspace` to disambiguate:
@@ -292,7 +330,7 @@ slackctl auth set-default https://myteam.slack.com
 
 ## All output is JSON
 
-All commands output JSON to stdout. Use `| jq` for filtering:
+All commands output JSON to stdout (`listen`: one JSON object per line). Use `| jq` for filtering:
 
 ```bash
 slackctl user get U01AAAA | jq '.email'

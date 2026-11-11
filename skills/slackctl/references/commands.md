@@ -100,6 +100,16 @@ Run `slackctl --help` (or `slackctl <command> --help`) for the full option list.
 - `slackctl user list [--limit <n>] [--include-bots]`
 - `slackctl user get <U...|@handle|handle>`
 
+## Listen
+
+- `slackctl listen` — stream real-time events as JSON Lines over the RTM websocket; runs until interrupted (exit 0) or auth fails (`_auth_error`, non-zero exit). Read-only.
+  - Options:
+    - `--types <t1,t2>` (default `message`; empty string = every event type)
+    - `--mentions-or-dms` (only DMs, group DMs, or exact `<@your-id>` mentions; applies to `message` events)
+    - `--include-bots` (default `true`; `false` drops messages with a `bot_id` or subtype `bot_message`)
+    - `--all-subtypes` (also emit `message_changed`, `message_deleted`, joins, ...; default keeps plain, `bot_message`, `thread_broadcast`, `file_share`, `me_message`)
+  - No channel/thread flag: filter by `channel` / `thread_ts` with `jq --arg`.
+
 ## Global flags
 
 - `--workspace <url-or-unique-substring>` — select workspace (needed when multiple workspaces configured and using channel names)
