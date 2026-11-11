@@ -112,9 +112,13 @@ slackctl
 ### listen: real-time event stream
 
 `slackctl listen` opens a real-time websocket via `rtm.connect` (works with
-browser `xoxc` + `d` cookie auth, including Enterprise Grid) and prints one
+browser `xoxc` + `d` cookie auth) and prints one
 JSON object per line on stdout. Diagnostics go to stderr. It is read-only:
 it never sends messages, marks anything read, or reacts.
+
+Not supported on Enterprise Grid org-level sessions
+(`*.enterprise.slack.com`): Slack refuses `rtm.connect` there with
+`enterprise_is_restricted`, and `listen` exits with a `_connect_error` line.
 
 How it works:
 
@@ -187,6 +191,9 @@ Control lines:
   (`invalid_auth` / `not_authed` / `token_revoked` / `token_expired` /
   `account_inactive`); the process then exits non-zero. Re-run
   `slackctl auth import-desktop` (or your usual auth command) and restart.
+- `{"type":"_connect_error","error":"..."}` when Slack refuses `rtm.connect`
+  for a reason retrying cannot fix (`enterprise_is_restricted` on Enterprise
+  Grid); the process then exits non-zero.
 
 The connection is kept alive with `ping`/`pong` every 20s; a missing pong,
 `goodbye`, or network error triggers reconnect with exponential backoff
@@ -198,11 +205,12 @@ If writing to stdout fails (e.g. disk full), the process logs the error and
 exits non-zero instead of silently dropping events.
 
 Running it as a long-lived process: restart only on non-zero exit, and fix
-credentials first when the last line was `_auth_error`, e.g.
+credentials first when the last line was `_auth_error` (and give up on
+`_connect_error`), e.g.
 
 ```bash
 until slackctl listen >> events.jsonl; do
-  tail -n1 events.jsonl | grep -q '"_auth_error"' && break
+  tail -n1 events.jsonl | grep -qE '"_(auth|connect)_error"' && break
   sleep 5
 done
 ```

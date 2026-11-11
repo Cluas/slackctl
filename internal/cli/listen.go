@@ -26,7 +26,9 @@ func newListenCmd() *cobra.Command {
 as one JSON object per line on stdout. Diagnostics go to stderr.
 
 Control lines: {"type":"_connected"}, {"type":"_reconnected"}, and
-{"type":"_auth_error"} (followed by a non-zero exit). Read-only: never sends
+{"type":"_auth_error"} / {"type":"_connect_error"} (both followed by a
+non-zero exit). Enterprise Grid org-level sessions are not supported: Slack
+refuses rtm.connect there (enterprise_is_restricted). Read-only: never sends
 messages, marks read, or reacts.`,
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,

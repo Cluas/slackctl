@@ -16,8 +16,9 @@ type RTMInfo struct {
 }
 
 // RTMConnect calls rtm.connect and returns the websocket URL and self identity.
-// Works with both standard tokens and browser (xoxc + d cookie) auth,
-// including Enterprise Grid workspaces.
+// Works with both standard tokens and browser (xoxc + d cookie) auth. Slack
+// refuses it with enterprise_is_restricted for Enterprise Grid org-level
+// sessions.
 func (c *Client) RTMConnect() (RTMInfo, error) {
 	resp, err := c.API("rtm.connect", map[string]string{"batch_presence_aware": "1"})
 	if err != nil {

@@ -191,6 +191,24 @@ func TestRunAuthErrorExits(t *testing.T) {
 	}
 }
 
+func TestRunUnsupportedConnectErrorExits(t *testing.T) {
+	conn := &fakeConnector{err: errors.New("Slack API error: enterprise_is_restricted")}
+	out := &safeBuffer{}
+	l := NewListener(conn, Filter{}, out, &safeBuffer{})
+	l.sleep = func(context.Context, time.Duration) { t.Fatal("must not retry a permanent connect error") }
+	err := l.Run(context.Background())
+	if !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("want ErrUnsupported, got %v", err)
+	}
+	lines := out.lines()
+	if len(lines) != 1 || lines[0]["type"] != "_connect_error" {
+		t.Fatalf("want one _connect_error line, got %v", lines)
+	}
+	if conn.connects != 1 {
+		t.Fatalf("connects=%d want 1", conn.connects)
+	}
+}
+
 func TestRunRetriesTransientConnectErrors(t *testing.T) {
 	conn := &fakeConnector{err: errors.New("dial tcp: i/o timeout")}
 	var slept []time.Duration
