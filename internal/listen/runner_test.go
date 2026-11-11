@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,6 +26,8 @@ type fakeConnector struct {
 	mpim      bool
 	mpimErr   error
 	mpimCalls int
+	// mpimBlock, when set, makes ConversationIsMPIM wait until it is closed.
+	mpimBlock chan struct{}
 }
 
 func (f *fakeConnector) RTMConnect() (slack.RTMInfo, error) {
@@ -39,6 +42,9 @@ func (f *fakeConnector) RTMConnect() (slack.RTMInfo, error) {
 func (f *fakeConnector) WebsocketHTTPClient() *http.Client { return http.DefaultClient }
 func (f *fakeConnector) WebsocketHeaders() http.Header     { return http.Header{} }
 func (f *fakeConnector) ConversationIsMPIM(string) (bool, error) {
+	if f.mpimBlock != nil {
+		<-f.mpimBlock
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.mpimCalls++
@@ -204,5 +210,122 @@ func TestRunRetriesTransientConnectErrors(t *testing.T) {
 		if slept[i] != d {
 			t.Fatalf("sleep[%d]=%s want %s (all %v)", i, slept[i], d, slept)
 		}
+	}
+}
+
+// newPingCountingServer sends hello plus the given frames, then answers every
+// ping with a pong and counts the pings it received.
+func newPingCountingServer(t *testing.T, frames ...string) (*httptest.Server, *atomic.Int64) {
+	t.Helper()
+	pings := &atomic.Int64{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer c.CloseNow()
+		ctx := r.Context()
+		for _, f := range append([]string{`{"type":"hello"}`}, frames...) {
+			_ = c.Write(ctx, websocket.MessageText, []byte(f))
+		}
+		for {
+			_, data, err := c.Read(ctx)
+			if err != nil {
+				return
+			}
+			var ping struct {
+				Type string `json:"type"`
+				ID   int64  `json:"id"`
+			}
+			if json.Unmarshal(data, &ping) == nil && ping.Type == "ping" {
+				pings.Add(1)
+				b, _ := json.Marshal(map[string]any{"type": "pong", "reply_to": ping.ID})
+				_ = c.Write(ctx, websocket.MessageText, b)
+			}
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv, pings
+}
+
+func wsURL(srv *httptest.Server) string { return "ws" + strings.TrimPrefix(srv.URL, "http") }
+
+func TestRunKeepsHeartbeatWhileChannelLookupIsSlow(t *testing.T) {
+	// Arrange: a message whose channel needs conversations.info, and a lookup that hangs.
+	srv, pings := newPingCountingServer(t, `{"type":"message","channel":"C7","user":"U9","text":"x","ts":"1.0"}`)
+	release := make(chan struct{})
+	conn := &fakeConnector{url: wsURL(srv), mpim: true, mpimBlock: release}
+	out := &safeBuffer{}
+	l := NewListener(conn, Filter{Types: ParseTypes("message"), MentionsOrDMs: true, IncludeBots: true}, out, &safeBuffer{})
+	l.sleep = func(context.Context, time.Duration) {}
+	l.SetPingInterval(30 * time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- l.Run(ctx) }()
+
+	// Act: keep the lookup blocked for many ping intervals, then release it.
+	time.Sleep(400 * time.Millisecond)
+	pingsDuringLookup := pings.Load()
+	close(release)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && len(out.lines()) < 2 {
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+	<-done
+
+	// Assert
+	if pingsDuringLookup < 3 {
+		t.Fatalf("keepalive stalled during lookup: %d pings sent", pingsDuringLookup)
+	}
+	if conn.connects != 1 {
+		t.Fatalf("slow lookup caused a reconnect: connects=%d", conn.connects)
+	}
+	lines := out.lines()
+	if len(lines) != 2 || lines[1]["channel"] != "C7" {
+		t.Fatalf("group DM should be emitted after lookup, got %v", lines)
+	}
+}
+
+func TestRunStopsPromptlyWhenCancelledDuringChannelLookup(t *testing.T) {
+	srv, _ := newPingCountingServer(t, `{"type":"message","channel":"C7","user":"U9","text":"x","ts":"1.0"}`)
+	conn := &fakeConnector{url: wsURL(srv), mpimBlock: make(chan struct{})} // never released
+	l := NewListener(conn, Filter{Types: ParseTypes("message"), MentionsOrDMs: true}, &safeBuffer{}, &safeBuffer{})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- l.Run(ctx) }()
+
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run returned %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Run did not return after cancel while a lookup was in flight")
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("no space left on device") }
+
+func TestRunReturnsErrorWhenStdoutWriteFails(t *testing.T) {
+	srv, _ := newPingCountingServer(t)
+	conn := &fakeConnector{url: wsURL(srv)}
+	l := NewListener(conn, Filter{Types: ParseTypes("message")}, failingWriter{}, &safeBuffer{})
+	l.sleep = func(context.Context, time.Duration) {}
+	done := make(chan error, 1)
+	go func() { done <- l.Run(context.Background()) }()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrOutput) {
+			t.Fatalf("want ErrOutput, got %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run kept running after stdout write failed")
 	}
 }

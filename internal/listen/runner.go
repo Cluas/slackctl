@@ -20,10 +20,16 @@ const (
 	dialTimeout         = 20 * time.Second
 	writeTimeout        = 10 * time.Second
 	readLimitBytes      = 8 << 20
+	// outputQueueSize buffers events between the websocket loop and the writer
+	// so a slow conversations.info lookup does not stall keepalive.
+	outputQueueSize = 1024
 )
 
 // ErrAuth is returned by Run when Slack rejects the credentials.
 var ErrAuth = errors.New("slack authentication failed")
+
+// ErrOutput is returned by Run when writing an event to stdout fails.
+var ErrOutput = errors.New("write output failed")
 
 // Connector is the subset of *slack.Client used by the listener.
 type Connector interface {
@@ -44,8 +50,20 @@ type Listener struct {
 
 	self       slack.RTMInfo
 	everHello  bool
-	mpimCache  map[string]bool
 	nextPingID int64
+
+	// Owned by the writer goroutine (see writeLoop).
+	ctx       context.Context
+	queue     chan outItem
+	mpimCache map[string]bool
+}
+
+// outItem is one unit of output: either an event still to be filtered and
+// projected by the writer, or a ready-made control record.
+type outItem struct {
+	ev     *RawEvent
+	selfID string
+	line   any
 }
 
 // NewListener creates a listener writing events to out and diagnostics to log.
@@ -59,6 +77,7 @@ func NewListener(conn Connector, filter Filter, out, log io.Writer) *Listener {
 		log:          log,
 		pingInterval: DefaultPingInterval,
 		sleep:        sleepCtx,
+		ctx:          context.Background(),
 		mpimCache:    map[string]bool{},
 	}
 	if filter.MentionsOrDMs && filter.IsMPIM == nil {
@@ -70,10 +89,35 @@ func NewListener(conn Connector, filter Filter, out, log io.Writer) *Listener {
 // SetPingInterval overrides the keepalive interval (mainly for tests).
 func (l *Listener) SetPingInterval(d time.Duration) { l.pingInterval = d }
 
-// Run connects and streams events until ctx is cancelled (returns nil) or
-// authentication fails (returns ErrAuth). All other errors are logged and
-// followed by an exponential-backoff reconnect.
-func (l *Listener) Run(ctx context.Context) error {
+// Run connects and streams events until ctx is cancelled (returns nil),
+// authentication fails (returns ErrAuth), or writing output fails (returns
+// ErrOutput). All other errors are logged and followed by an
+// exponential-backoff reconnect.
+//
+// The websocket loop only reads frames and answers keepalive; filtering,
+// conversations.info lookups and writing happen on a separate writer
+// goroutine, fed in order through a queue.
+func (l *Listener) Run(parent context.Context) error {
+	ctx, cancel := context.WithCancelCause(parent)
+	defer cancel(nil)
+	l.ctx = ctx
+	l.queue = make(chan outItem, outputQueueSize)
+	writerDone := make(chan struct{})
+	go func() {
+		defer close(writerDone)
+		l.writeLoop(ctx, cancel)
+	}()
+
+	err := l.connectLoop(ctx)
+	close(l.queue)
+	<-writerDone
+	if cause := context.Cause(ctx); errors.Is(cause, ErrOutput) {
+		return cause
+	}
+	return err
+}
+
+func (l *Listener) connectLoop(ctx context.Context) error {
 	attempt := 0
 	reconnectURL := ""
 	for ctx.Err() == nil {
@@ -83,7 +127,7 @@ func (l *Listener) Run(ctx context.Context) error {
 			info, err := l.conn.RTMConnect()
 			if err != nil {
 				if IsAuthError(err) {
-					l.emit(controlRecord{Type: "_auth_error", Error: err.Error(), At: nowRFC3339()})
+					l.enqueue(ctx, outItem{line: controlRecord{Type: "_auth_error", Error: err.Error(), At: nowRFC3339()}})
 					return fmt.Errorf("%w: %v", ErrAuth, err)
 				}
 				l.logf("rtm.connect failed: %v", err)
@@ -91,7 +135,6 @@ func (l *Listener) Run(ctx context.Context) error {
 				continue
 			}
 			l.self = info
-			l.filter.SelfID = info.SelfID
 			wsURL = info.URL
 		}
 		res := l.session(ctx, wsURL, attempt)
@@ -155,7 +198,7 @@ func (l *Listener) session(ctx context.Context, wsURL string, attempt int) sessi
 			switch ev.Type {
 			case "hello":
 				res.gotHello = true
-				l.emitConnected(attempt)
+				l.emitConnected(ctx, attempt)
 			case "pong":
 				if ev.ReplyTo != nil && *ev.ReplyTo == pendingPing {
 					pendingPing = 0
@@ -168,9 +211,7 @@ func (l *Listener) session(ctx context.Context, wsURL string, attempt int) sessi
 			case "error":
 				l.logf("server error event: %s", string(data))
 			default:
-				if line, ok := l.filter.Select(ev); ok {
-					l.emit(line)
-				}
+				l.enqueue(ctx, outItem{ev: &ev, selfID: l.self.SelfID})
 			}
 		case <-ticker.C:
 			if pendingPing != 0 {
@@ -217,14 +258,14 @@ func writeJSON(ctx context.Context, c *websocket.Conn, v any) error {
 	return c.Write(wctx, websocket.MessageText, data)
 }
 
-func (l *Listener) emitConnected(attempt int) {
+func (l *Listener) emitConnected(ctx context.Context, attempt int) {
 	typ := "_connected"
 	if l.everHello {
 		typ = "_reconnected"
 	}
 	l.everHello = true
 	self := l.self
-	l.emit(controlRecord{Type: typ, Self: &self, Via: "rtm.connect", Attempts: attempt, At: nowRFC3339()})
+	l.enqueue(ctx, outItem{line: controlRecord{Type: typ, Self: &self, Via: "rtm.connect", Attempts: attempt, At: nowRFC3339()}})
 }
 
 // controlRecord is a synthetic line (_connected / _reconnected / _auth_error).
@@ -239,10 +280,41 @@ type controlRecord struct {
 
 func nowRFC3339() string { return time.Now().UTC().Format(time.RFC3339) }
 
-func (l *Listener) emit(v any) {
-	if err := l.out.Encode(v); err != nil {
-		l.logf("write stdout: %v", err)
+// enqueue hands an item to the writer, giving up if ctx is done (shutdown or
+// a writer failure).
+func (l *Listener) enqueue(ctx context.Context, it outItem) {
+	select {
+	case l.queue <- it:
+	case <-ctx.Done():
 	}
+}
+
+// writeLoop filters and writes queued items in order. A write failure is
+// terminal: it cancels Run with ErrOutput so supervisors see a non-zero exit.
+func (l *Listener) writeLoop(ctx context.Context, cancel context.CancelCauseFunc) {
+	for it := range l.queue {
+		if ctx.Err() != nil {
+			continue // shutting down: drain without writing
+		}
+		if err := l.write(it); err != nil {
+			l.logf("write stdout: %v", err)
+			cancel(fmt.Errorf("%w: %v", ErrOutput, err))
+		}
+	}
+}
+
+func (l *Listener) write(it outItem) error {
+	line := it.line
+	if it.ev != nil {
+		f := l.filter
+		f.SelfID = it.selfID
+		selected, ok := f.Select(*it.ev)
+		if !ok {
+			return nil
+		}
+		line = selected
+	}
+	return l.out.Encode(line)
 }
 
 func (l *Listener) logf(format string, args ...any) {
@@ -257,19 +329,42 @@ func (l *Listener) backoff(ctx context.Context, attempt *int) {
 	l.sleep(ctx, d)
 }
 
-// resolveMPIM looks up (and caches) whether a channel is a group DM.
+// resolveMPIM looks up (and caches) whether a channel is a group DM. Runs on
+// the writer goroutine only.
 func (l *Listener) resolveMPIM(channel string) bool {
 	if v, ok := l.mpimCache[channel]; ok {
 		return v
 	}
-	isMPIM, err := l.conn.ConversationIsMPIM(channel)
+	isMPIM, err := l.lookupMPIM(channel)
 	if err != nil {
 		// Not cached: a transient failure must not hide the channel for the whole session.
-		l.logf("conversations.info %s: %v", channel, err)
+		if l.ctx.Err() == nil {
+			l.logf("conversations.info %s: %v", channel, err)
+		}
 		return false
 	}
 	l.mpimCache[channel] = isMPIM
 	return isMPIM
+}
+
+// lookupMPIM calls conversations.info but returns as soon as Run is
+// cancelled; the Slack client has no context and may sleep on rate limits.
+func (l *Listener) lookupMPIM(channel string) (bool, error) {
+	type result struct {
+		isMPIM bool
+		err    error
+	}
+	done := make(chan result, 1)
+	go func() {
+		isMPIM, err := l.conn.ConversationIsMPIM(channel)
+		done <- result{isMPIM, err}
+	}()
+	select {
+	case r := <-done:
+		return r.isMPIM, r.err
+	case <-l.ctx.Done():
+		return false, l.ctx.Err()
+	}
 }
 
 // IsAuthError reports whether err means the credentials are no longer valid.

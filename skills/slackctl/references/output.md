@@ -181,7 +181,7 @@ The `messages` field is only present when `--fetch` is used.
 
 `listen` prints one JSON object per line (JSON Lines), not an array.
 
-- Message event (`text` capped at 2000 chars; `attachments` / `blocks` passed through raw when present; for `message_changed` the content fields come from the edited message):
+- Message event (`text` capped at 2000 chars; `attachments` / `blocks` passed through raw when present; for `message_changed` the content fields come from the edited message; for `message_deleted` they come from `previous_message`, and `ts` / `deleted_ts` are the removed message's timestamp):
 
 ```json
 {"type":"message","channel":"C123","ts":"1700000000.000200","thread_ts":"1700000000.000100","user":"U456","text":"looks good <@U123>","from_self":false,"is_mention":true,"is_dm":false,"event_ts":"1700000000.000200"}

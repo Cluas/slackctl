@@ -33,6 +33,9 @@ type RawEvent struct {
 		Msg  string `json:"msg"`
 	} `json:"error"`
 	Message *RawEvent `json:"message"` // nested for message_changed
+	// message_deleted: deleted_ts is the removed message; outer ts is the deletion event.
+	DeletedTS       string    `json:"deleted_ts"`
+	PreviousMessage *RawEvent `json:"previous_message"`
 	// Raw is the original frame, emitted as-is for non-message events.
 	Raw json.RawMessage `json:"-"`
 }
@@ -88,6 +91,7 @@ type Record struct {
 	IsMention bool   `json:"is_mention"`
 	IsDM      bool   `json:"is_dm"`
 	EventTS   string `json:"event_ts,omitempty"`
+	DeletedTS string `json:"deleted_ts,omitempty"`
 	// rawJSON keeps Record comparable while still emitting the original JSON.
 	Attachments rawJSON `json:"attachments,omitempty"`
 	Blocks      rawJSON `json:"blocks,omitempty"`
@@ -166,10 +170,14 @@ func (f Filter) Apply(ev RawEvent) (Record, bool) {
 }
 
 func (f Filter) project(ev RawEvent) Record {
-	src := ev
-	// message_changed etc. carry the content in a nested "message".
-	if ev.Message != nil {
-		src = *ev.Message
+	// message_changed carries the content in "message"; message_deleted keeps
+	// the removed message in "previous_message".
+	src, nestedTS := ev, ""
+	switch {
+	case ev.Message != nil:
+		src, nestedTS = *ev.Message, ev.Message.TS
+	case ev.PreviousMessage != nil:
+		src, nestedTS = *ev.PreviousMessage, ev.PreviousMessage.TS
 	}
 	channel := ev.ChannelID()
 	user := src.UserID()
@@ -177,12 +185,13 @@ func (f Filter) project(ev RawEvent) Record {
 		Type:        ev.Type,
 		Subtype:     ev.Subtype,
 		Channel:     channel,
-		TS:          firstNonEmpty(src.TS, ev.TS),
+		TS:          firstNonEmpty(nestedTS, ev.DeletedTS, ev.TS),
 		ThreadTS:    firstNonEmpty(src.ThreadTS, ev.ThreadTS),
 		User:        user,
 		BotID:       firstNonEmpty(src.BotID, ev.BotID),
 		Text:        truncateRunes(src.Text, MaxTextRunes),
 		EventTS:     ev.EventTS,
+		DeletedTS:   ev.DeletedTS,
 		Attachments: rawJSON(src.Attachments),
 		Blocks:      rawJSON(src.Blocks),
 	}
@@ -225,11 +234,13 @@ func isControlType(t string) bool {
 	return false
 }
 
-func firstNonEmpty(a, b string) string {
-	if a != "" {
-		return a
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
 	}
-	return b
+	return ""
 }
 
 func truncateRunes(s string, max int) string {

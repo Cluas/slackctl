@@ -238,3 +238,26 @@ func TestSelectStillAppliesTypesFilterToNonMessageEvents(t *testing.T) {
 		t.Fatal("reaction_added not in --types should be dropped")
 	}
 }
+
+func TestApplyMessageDeletedKeepsDeletedMessageTimestamp(t *testing.T) {
+	// Arrange: outer ts is the deletion event; deleted_ts is the removed message.
+	ev := mustParse(t, `{"type":"message","subtype":"message_deleted","channel":"C1",`+
+		`"ts":"1700000099.000000","deleted_ts":"1700000000.000100","event_ts":"1700000099.000000",`+
+		`"previous_message":{"type":"message","user":"U9","text":"oops","ts":"1700000000.000100"}}`)
+	f := baseFilter()
+	f.AllSubtypes = true
+
+	// Act
+	rec, ok := f.Apply(ev)
+
+	// Assert
+	if !ok {
+		t.Fatal("message_deleted should be emitted with --all-subtypes")
+	}
+	if rec.DeletedTS != "1700000000.000100" || rec.TS != "1700000000.000100" {
+		t.Fatalf("ts=%q deleted_ts=%q, want both to be the removed message ts", rec.TS, rec.DeletedTS)
+	}
+	if rec.User != "U9" || rec.Text != "oops" || rec.EventTS != "1700000099.000000" {
+		t.Fatalf("want removed message content and deletion event_ts, got %+v", rec)
+	}
+}

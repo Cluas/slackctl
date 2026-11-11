@@ -102,7 +102,7 @@ Run `slackctl --help` (or `slackctl <command> --help`) for the full option list.
 
 ## Listen
 
-- `slackctl listen` — stream real-time events as JSON Lines over the RTM websocket; runs until interrupted (exit 0) or auth fails (`_auth_error`, non-zero exit). Read-only.
+- `slackctl listen` — stream real-time events as JSON Lines over the RTM websocket; runs until interrupted (exit 0), auth fails (`_auth_error`, non-zero exit), or writing stdout fails (non-zero exit). Read-only.
   - Options:
     - `--types <t1,t2>` (default `message`; empty string = every event type; non-message types print the raw Slack payload)
     - `--mentions-or-dms` (only DMs, group DMs, or exact `<@your-id>` mentions; applies to `message` events)

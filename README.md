@@ -166,10 +166,12 @@ is in `--types`, as the **original Slack payload, unchanged** (the other
 filters and the fields below apply to `message` events only).
 
 `message` line fields: `type, subtype, channel, ts, thread_ts, user, bot_id,
-text` (max 2000 chars), `from_self, is_mention, is_dm, event_ts`, plus
+text` (max 2000 chars), `from_self, is_mention, is_dm, event_ts, deleted_ts`, plus
 `attachments` and `blocks` passed through unchanged when present (bot messages
 often keep their button URLs there). For `message_changed`, content fields come
-from the nested edited message. Your own messages are kept and flagged
+from the nested edited message; for `message_deleted`, they come from
+`previous_message`, and `ts` / `deleted_ts` are the removed message's timestamp
+(`event_ts` is when it was deleted). Your own messages are kept and flagged
 `"from_self": true`.
 
 ```json
@@ -189,6 +191,11 @@ Control lines:
 The connection is kept alive with `ping`/`pong` every 20s; a missing pong,
 `goodbye`, or network error triggers reconnect with exponential backoff
 (1s, 2s, 4s … capped at 60s), reusing `reconnect_url` when Slack provides one.
+Group-DM lookups (`conversations.info`) run off the websocket loop, so a slow or
+rate-limited lookup delays output but never the keepalive.
+
+If writing to stdout fails (e.g. disk full), the process logs the error and
+exits non-zero instead of silently dropping events.
 
 Running it as a long-lived process: restart only on non-zero exit, and fix
 credentials first when the last line was `_auth_error`, e.g.
