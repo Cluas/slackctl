@@ -116,37 +116,82 @@ browser `xoxc` + `d` cookie auth, including Enterprise Grid) and prints one
 JSON object per line on stdout. Diagnostics go to stderr. It is read-only:
 it never sends messages, marks anything read, or reacts.
 
+How it works:
+
+1. Calls `rtm.connect` to get a one-time `wss://` URL and your own identity.
+2. Dials the websocket with the same TLS fingerprint, `d` cookie and
+   User-Agent used for API calls, so browser-session credentials work.
+3. Prints `_connected` on the first `hello`, then one line per event that
+   passes the filters below, until you press Ctrl-C (exit 0).
+
 ```bash
 # Every new message in conversations you are in
 slackctl listen
 
+# Pick a workspace when you have several
+slackctl listen --workspace myteam
+
 # Only DMs, group DMs, and messages that @-mention you
-slackctl listen --mentions-or-dms | while read -r line; do
-  echo "$line" | jq -r 'select(.type=="message") | "\(.channel) \(.user): \(.text)"'
-done
+slackctl listen --mentions-or-dms | jq -r --unbuffered \
+  'select(.type=="message") | "\(.channel) \(.user): \(.text)"'
+
+# Several event types; edits/deletes and bot messages filtered as you like
+slackctl listen --types message,reaction_added --all-subtypes --include-bots=false
+
+# Everything Slack sends (empty --types), saved for later analysis
+slackctl listen --types "" > events.jsonl
+
+# Extract button / link URLs from bot messages (attachments + blocks)
+slackctl listen | jq -r --unbuffered \
+  '.attachments[]?.actions[]?.url // empty, .blocks[]?.elements[]?.url // empty'
 ```
 
 | Flag | Default | Description |
 |---|---|---|
 | `--types` | `message` | Comma-separated event types to emit; empty string = all |
-| `--mentions-or-dms` | `false` | Only DMs (`D…`), group DMs (`G…` / `is_mpim`), or text containing `<@your-id>` |
+| `--mentions-or-dms` | `false` | Only DMs (`D…` / `channel_type: im`), group DMs (`is_mpim`, resolved via `conversations.info` and cached), or text containing `<@your-id>` |
 | `--include-bots` | `true` | Include bot messages (`--include-bots=false` to drop) |
 | `--all-subtypes` | `false` | Also emit `message_changed`, `message_deleted`, joins, etc. |
 
+By default only message subtypes that carry new content are emitted: plain
+messages, `bot_message`, `thread_broadcast`, `file_share`, `me_message`.
+Non-message events (e.g. `reaction_added`) pass through whenever their type
+is in `--types`.
+
 Message line fields: `type, subtype, channel, ts, thread_ts, user, bot_id,
-text` (max 2000 chars), `from_self, is_mention, is_dm, event_ts`. Your own
-messages are kept and flagged `"from_self": true`.
+text` (max 2000 chars), `from_self, is_mention, is_dm, event_ts`, plus
+`attachments` and `blocks` passed through unchanged when present (bot messages
+often keep their button URLs there). For `message_changed`, content fields come
+from the nested edited message. Your own messages are kept and flagged
+`"from_self": true`.
+
+```json
+{"type":"message","channel":"D0123ABCD","ts":"1700000000.000100","user":"U0123ABCD","text":"hi <@U0SELF>","from_self":false,"is_mention":true,"is_dm":true}
+```
 
 Control lines:
 
 - `{"type":"_connected","self":{...},"via":"rtm.connect",...}` on first `hello`
-- `{"type":"_reconnected",...}` after any later reconnect
+- `{"type":"_reconnected",...}` after any later reconnect (events sent while
+  disconnected are not replayed; use `message list` to backfill)
 - `{"type":"_auth_error","error":"..."}` when credentials are rejected
-  (`invalid_auth` / `not_authed`); the process then exits non-zero
+  (`invalid_auth` / `not_authed` / `token_revoked` / `token_expired` /
+  `account_inactive`); the process then exits non-zero. Re-run
+  `slackctl auth import-desktop` (or your usual auth command) and restart.
 
 The connection is kept alive with `ping`/`pong` every 20s; a missing pong,
 `goodbye`, or network error triggers reconnect with exponential backoff
 (1s, 2s, 4s … capped at 60s), reusing `reconnect_url` when Slack provides one.
+
+Running it as a long-lived process: restart only on non-zero exit, and fix
+credentials first when the last line was `_auth_error`, e.g.
+
+```bash
+until slackctl listen >> events.jsonl; do
+  tail -n1 events.jsonl | grep -q '"_auth_error"' && break
+  sleep 5
+done
+```
 
 ## Environment variables
 

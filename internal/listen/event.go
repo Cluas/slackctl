@@ -168,12 +168,21 @@ func (f Filter) project(ev RawEvent) Record {
 	}
 	rec.FromSelf = f.SelfID != "" && user == f.SelfID
 	rec.IsDM = strings.HasPrefix(channel, "D") || ev.ChannelT == "im"
-	rec.IsMention = f.SelfID != "" && strings.Contains(src.Text, "<@"+f.SelfID)
+	rec.IsMention = mentions(src.Text, f.SelfID)
 	return rec
 }
 
-// isGroupDM: explicit is_mpim / channel_type wins; G-prefixed ids are treated
-// as group DMs; otherwise ask the resolver (if any).
+// mentions reports whether text contains an exact <@id> or <@id|label> mention.
+func mentions(text, id string) bool {
+	if id == "" {
+		return false
+	}
+	return strings.Contains(text, "<@"+id+">") || strings.Contains(text, "<@"+id+"|")
+}
+
+// isGroupDM: explicit is_mpim / channel_type wins; otherwise ask the resolver
+// (if any). A "G" id prefix alone is not enough: legacy private channels use
+// it too.
 func (f Filter) isGroupDM(ev RawEvent) bool {
 	if ev.IsMPIM != nil {
 		return *ev.IsMPIM
@@ -182,9 +191,6 @@ func (f Filter) isGroupDM(ev RawEvent) bool {
 		return true
 	}
 	channel := ev.ChannelID()
-	if strings.HasPrefix(channel, "G") {
-		return true
-	}
 	if f.IsMPIM != nil && channel != "" {
 		return f.IsMPIM(channel)
 	}

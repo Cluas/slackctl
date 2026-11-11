@@ -18,10 +18,13 @@ import (
 )
 
 type fakeConnector struct {
-	mu       sync.Mutex
-	url      string
-	err      error
-	connects int
+	mu        sync.Mutex
+	url       string
+	err       error
+	connects  int
+	mpim      bool
+	mpimErr   error
+	mpimCalls int
 }
 
 func (f *fakeConnector) RTMConnect() (slack.RTMInfo, error) {
@@ -36,7 +39,32 @@ func (f *fakeConnector) RTMConnect() (slack.RTMInfo, error) {
 func (f *fakeConnector) WebsocketHTTPClient() *http.Client { return http.DefaultClient }
 func (f *fakeConnector) WebsocketHeaders() http.Header     { return http.Header{} }
 func (f *fakeConnector) ConversationIsMPIM(string) (bool, error) {
-	return false, nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.mpimCalls++
+	if f.mpimErr != nil {
+		return false, f.mpimErr
+	}
+	return f.mpim, nil
+}
+
+func TestResolveMPIMCachesOnlySuccessfulLookups(t *testing.T) {
+	// Arrange
+	conn := &fakeConnector{mpim: true, mpimErr: errors.New("Slack API error: ratelimited")}
+	l := NewListener(conn, Filter{MentionsOrDMs: true}, &bytes.Buffer{}, &bytes.Buffer{})
+
+	// Act + Assert: a failed lookup is not cached, so the next call retries.
+	if l.resolveMPIM("G1") {
+		t.Fatal("failed lookup should report not-mpim")
+	}
+	conn.mpimErr = nil
+	if !l.resolveMPIM("G1") {
+		t.Fatal("retry after failure should see mpim=true")
+	}
+	l.resolveMPIM("G1")
+	if conn.mpimCalls != 2 {
+		t.Fatalf("mpimCalls=%d want 2 (error not cached, success cached)", conn.mpimCalls)
+	}
 }
 
 // safeBuffer collects output lines from the listener goroutine.

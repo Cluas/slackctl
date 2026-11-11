@@ -264,7 +264,9 @@ func (l *Listener) resolveMPIM(channel string) bool {
 	}
 	isMPIM, err := l.conn.ConversationIsMPIM(channel)
 	if err != nil {
+		// Not cached: a transient failure must not hide the channel for the whole session.
 		l.logf("conversations.info %s: %v", channel, err)
+		return false
 	}
 	l.mpimCache[channel] = isMPIM
 	return isMPIM
