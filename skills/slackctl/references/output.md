@@ -187,7 +187,11 @@ The `messages` field is only present when `--fetch` is used.
 {"type":"message","channel":"C123","ts":"1700000000.000200","thread_ts":"1700000000.000100","user":"U456","text":"looks good <@U123>","from_self":false,"is_mention":true,"is_dm":false,"event_ts":"1700000000.000200"}
 ```
 
-- Other event types (e.g. `reaction_added` with `--types`) use the same record fields, filled only from top-level `channel` / `user` / `ts` / `text` etc.; nested data such as `reaction_added`'s `item.channel` is not extracted.
+- Other event types (e.g. `reaction_added` via `--types`) are printed as the original Slack payload, unchanged:
+
+```json
+{"type":"reaction_added","user":"U456","reaction":"eyes","item_user":"U123","item":{"type":"message","channel":"C123","ts":"1700000000.000100"},"event_ts":"1700000001.000000"}
+```
 - Control lines:
 
 ```json

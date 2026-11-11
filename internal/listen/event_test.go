@@ -2,6 +2,7 @@ package listen
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -192,5 +193,48 @@ func TestApplyKeepsAttachmentsAndBlocks(t *testing.T) {
 		if !strings.Contains(string(out), want) {
 			t.Fatalf("missing %s in %s", want, out)
 		}
+	}
+}
+
+func TestSelectPassesNonMessageEventsThroughUnchanged(t *testing.T) {
+	// Arrange
+	raw := `{"type":"reaction_added","user":"U9","reaction":"eyes","item_user":"U0SELF",` +
+		`"item":{"type":"message","channel":"C1","ts":"1700000000.000100"},"event_ts":"1700000001.000000"}`
+	f := baseFilter()
+	f.Types = ParseTypes("message,reaction_added")
+
+	// Act
+	line, ok := f.Select(mustParse(t, raw))
+
+	// Assert
+	if !ok {
+		t.Fatal("reaction_added in --types should be emitted")
+	}
+	got, err := json.Marshal(line)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want, have map[string]any
+	_ = json.Unmarshal([]byte(raw), &want)
+	_ = json.Unmarshal(got, &have)
+	if !reflect.DeepEqual(want, have) {
+		t.Fatalf("non-message event changed:\n got %s\nwant %s", got, raw)
+	}
+}
+
+func TestSelectProjectsMessageEvents(t *testing.T) {
+	line, ok := baseFilter().Select(mustParse(t, `{"type":"message","channel":"D1","user":"U9","text":"hi","extra":"dropped"}`))
+	if !ok {
+		t.Fatal("message should be emitted")
+	}
+	rec, isRecord := line.(Record)
+	if !isRecord || rec.Channel != "D1" || !rec.IsDM {
+		t.Fatalf("want projected Record, got %#v", line)
+	}
+}
+
+func TestSelectStillAppliesTypesFilterToNonMessageEvents(t *testing.T) {
+	if _, ok := baseFilter().Select(mustParse(t, `{"type":"reaction_added","user":"U9"}`)); ok {
+		t.Fatal("reaction_added not in --types should be dropped")
 	}
 }

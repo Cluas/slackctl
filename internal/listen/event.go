@@ -33,13 +33,18 @@ type RawEvent struct {
 		Msg  string `json:"msg"`
 	} `json:"error"`
 	Message *RawEvent `json:"message"` // nested for message_changed
+	// Raw is the original frame, emitted as-is for non-message events.
+	Raw json.RawMessage `json:"-"`
 }
 
 // ParseEvent decodes one websocket frame into a RawEvent.
 func ParseEvent(data []byte) (RawEvent, error) {
 	var ev RawEvent
-	err := json.Unmarshal(data, &ev)
-	return ev, err
+	if err := json.Unmarshal(data, &ev); err != nil {
+		return RawEvent{}, err
+	}
+	ev.Raw = json.RawMessage(data)
+	return ev, nil
 }
 
 // ChannelID returns the channel id whether "channel" is a string or object.
@@ -118,6 +123,21 @@ func ParseTypes(s string) map[string]bool {
 		}
 	}
 	return set
+}
+
+// Select decides whether ev should be emitted and returns the line to print:
+// the projected Record for message events, the original payload for every
+// other type (their fields vary per type and often sit in nested objects such
+// as reaction_added's "item", so projecting them would lose data).
+func (f Filter) Select(ev RawEvent) (any, bool) {
+	rec, ok := f.Apply(ev)
+	if !ok {
+		return nil, false
+	}
+	if ev.Type != "message" && len(ev.Raw) > 0 {
+		return ev.Raw, true
+	}
+	return rec, true
 }
 
 // Apply decides whether ev should be emitted and returns the projected record.

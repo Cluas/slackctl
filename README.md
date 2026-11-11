@@ -161,10 +161,11 @@ received even with `--mentions-or-dms`.
 
 By default only message subtypes that carry new content are emitted: plain
 messages, `bot_message`, `thread_broadcast`, `file_share`, `me_message`.
-Non-message events (e.g. `reaction_added`) pass through whenever their type
-is in `--types`.
+Non-message events (e.g. `reaction_added`) are emitted whenever their type
+is in `--types`, as the **original Slack payload, unchanged** (the other
+filters and the fields below apply to `message` events only).
 
-Message line fields: `type, subtype, channel, ts, thread_ts, user, bot_id,
+`message` line fields: `type, subtype, channel, ts, thread_ts, user, bot_id,
 text` (max 2000 chars), `from_self, is_mention, is_dm, event_ts`, plus
 `attachments` and `blocks` passed through unchanged when present (bot messages
 often keep their button URLs there). For `message_changed`, content fields come

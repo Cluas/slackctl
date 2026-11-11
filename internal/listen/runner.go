@@ -168,8 +168,8 @@ func (l *Listener) session(ctx context.Context, wsURL string, attempt int) sessi
 			case "error":
 				l.logf("server error event: %s", string(data))
 			default:
-				if rec, ok := l.filter.Apply(ev); ok {
-					l.emit(rec)
+				if line, ok := l.filter.Select(ev); ok {
+					l.emit(line)
 				}
 			}
 		case <-ticker.C:
