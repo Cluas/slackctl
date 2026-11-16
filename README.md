@@ -2,6 +2,8 @@
 
 A fast, single-binary Slack CLI for AI agents and humans. Written in Go.
 
+Website: https://blog.cluas.eu.org/slackctl/
+
 ## Features
 
 - **Single binary** — no Node.js, no runtime dependencies; macOS, Linux & Windows (amd64/arm64)

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>slackctl: a fast Slack CLI for AI agents and humans</title>
+<meta name="description" content="slackctl is a single-binary Slack command-line tool written in Go. Read threads, send messages, search, upload files and stream real-time events as JSON, using your existing Slack Desktop or browser login. Built for AI agents like Claude Code and Codex.">
+<link rel="canonical" href="https://blog.cluas.eu.org/slackctl/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="slackctl: a fast Slack CLI for AI agents and humans">
+<meta property="og:description" content="Single-binary Slack CLI in Go. JSON output, auto-auth from Slack Desktop or your browser, real-time event stream. Works as an agent skill for Claude Code, Codex and Gemini CLI.">
+<meta property="og:url" content="https://blog.cluas.eu.org/slackctl/">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "slackctl",
+  "description": "A fast, single-binary Slack CLI for AI agents and humans, written in Go.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "macOS, Linux, Windows",
+  "url": "https://blog.cluas.eu.org/slackctl/",
+  "downloadUrl": "https://github.com/Cluas/slackctl/releases",
+  "codeRepository": "https://github.com/Cluas/slackctl",
+  "license": "https://opensource.org/licenses/MIT",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+<style>
+:root {
+  --bg: #fbfaf8; --fg: #1d1c1a; --muted: #6b675f; --line: #e6e2da;
+  --code-bg: #f2efe9; --accent: #4a154b; --accent-fg: #fff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161514; --fg: #ece9e4; --muted: #a39e94; --line: #2e2c29;
+    --code-bg: #201f1d; --accent: #d9a7da; --accent-fg: #161514;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+main { max-width: 760px; margin: 0 auto; padding: 56px 16px 72px; }
+a { color: var(--accent); }
+h1 { font-size: 2.6rem; line-height: 1.1; margin: 0 0 12px; letter-spacing: -0.02em; }
+h2 { font-size: 1.35rem; margin: 48px 0 12px; padding-top: 16px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.05rem; margin: 24px 0 8px; }
+.lede { font-size: 1.2rem; color: var(--muted); margin: 0 0 24px; }
+.cta { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+.btn {
+  display: inline-block; padding: 9px 16px; border-radius: 8px; text-decoration: none;
+  font-weight: 600; border: 1px solid var(--accent);
+}
+.btn.primary { background: var(--accent); color: var(--accent-fg); }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+:not(pre) > code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre {
+  background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 14px 16px; overflow-x: auto; line-height: 1.5;
+}
+ul.features { padding-left: 20px; }
+ul.features li { margin: 6px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 0.95em; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.table-wrap { overflow-x: auto; }
+footer { margin-top: 56px; color: var(--muted); font-size: 0.9em; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>slackctl</h1>
+  <p class="lede">A fast, single-binary Slack CLI for AI agents and humans. Read threads, send messages, search, upload files and stream real-time events as JSON, using the Slack login you already have.</p>
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/Cluas/slackctl">View on GitHub</a>
+    <a class="btn" href="https://github.com/Cluas/slackctl/releases">Download</a>
+    <a class="btn" href="https://pkg.go.dev/github.com/cluas/slackctl">pkg.go.dev</a>
+  </div>
+</header>
+
+<h2>Why slackctl</h2>
+<ul class="features">
+  <li><strong>Single binary.</strong> No Node.js, no runtime dependencies. macOS, Linux and Windows, amd64 and arm64.</li>
+  <li><strong>No bot token needed.</strong> Imports your session from Slack Desktop, Chrome, Brave or Firefox (<code>xoxc</code> token plus <code>d</code> cookie), so it works in workspaces where you cannot install an app.</li>
+  <li><strong>Made for agents.</strong> Every command prints JSON. Ships an agent skill for Claude Code, Codex and Gemini CLI.</li>
+  <li><strong>Covers the daily work.</strong> Messages, threads, unread, saved-for-later, search, users, channels, canvases, reactions and file uploads.</li>
+  <li><strong>Real-time.</strong> <code>slackctl listen</code> streams new messages, mentions and DMs as JSON Lines.</li>
+</ul>
+
+<h2>Install</h2>
+<h3>Homebrew (macOS / Linux)</h3>
+<pre><code>brew tap cluas/tap
+brew install slackctl</code></pre>
+<h3>Scoop (Windows)</h3>
+<pre><code>scoop bucket add cluas https://github.com/cluas/scoop-bucket
+scoop install slackctl</code></pre>
+<h3>Go</h3>
+<pre><code>go install github.com/cluas/slackctl/cmd/slackctl@latest</code></pre>
+<p>Prebuilt archives for every platform are on the <a href="https://github.com/Cluas/slackctl/releases">releases page</a>.</p>
+
+<h2>Quick start</h2>
+<pre><code># Import credentials from Slack Desktop (or import-chrome / import-firefox / import-brave)
+slackctl auth import-desktop
+slackctl auth test
+
+# Read a thread from its URL
+slackctl message get https://myteam.slack.com/archives/C0123/p1700000000000100
+
+# Post a message
+slackctl message send '#general' 'deploy finished'
+
+# Search
+slackctl search messages 'from:@alice incident'
+
+# Wait for mentions and DMs in real time
+slackctl listen --mentions-or-dms</code></pre>
+
+<h2>Commands</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>Group</th><th>What it does</th></tr>
+  <tr><td><code>auth</code></td><td>Import or add credentials, test them, switch the default workspace</td></tr>
+  <tr><td><code>message</code></td><td>Get, list, send, edit and delete messages; reactions; unread; saved-for-later list</td></tr>
+  <tr><td><code>file</code></td><td>Upload (including from stdin), download, list and delete files</td></tr>
+  <tr><td><code>search</code></td><td>Search messages and files</td></tr>
+  <tr><td><code>channel</code></td><td>List conversations, create channels, invite users, mark as read</td></tr>
+  <tr><td><code>user</code></td><td>List users and look one up, including their custom status</td></tr>
+  <tr><td><code>canvas</code></td><td>Fetch a canvas as Markdown</td></tr>
+  <tr><td><code>listen</code></td><td>Stream real-time events as JSON Lines</td></tr>
+</table>
+</div>
+
+<h2>Use it from an AI agent</h2>
+<p>The repository ships an agent skill that teaches Claude Code, Codex, Gemini CLI and similar agents how to call slackctl.</p>
+<pre><code>npx skills add cluas/slackctl -g</code></pre>
+<p>Then ask your agent things like "summarize this Slack thread", "what did I miss in #release" or "tell me when Alice replies".</p>
+
+<h2>Credentials</h2>
+<p>Credentials are stored in <code>~/.config/agent-slack/credentials.json</code>, compatible with <a href="https://github.com/stablyai/agent-slack">agent-slack</a>. Environment variables <code>SLACK_TOKEN</code>, <code>SLACK_COOKIE_D</code> and <code>SLACK_WORKSPACE_URL</code> take precedence.</p>
+
+<footer>
+  <p>slackctl is MIT licensed and a Go rewrite of <a href="https://github.com/stablyai/agent-slack">agent-slack</a>. Full documentation is in the <a href="https://github.com/Cluas/slackctl#readme">README</a>.</p>
+</footer>
+</main>
+</body>
+</html>
