@@ -17,6 +17,11 @@ type User struct {
 	IsAdmin     bool   `json:"is_admin,omitempty"`
 	Title       string `json:"title,omitempty"`
 	TZ          string `json:"tz,omitempty"`
+	// StatusText and StatusEmoji are the custom status set in the profile, e.g. "On vacation" / ":palm_tree:".
+	StatusText  string `json:"status_text,omitempty"`
+	StatusEmoji string `json:"status_emoji,omitempty"`
+	// StatusExpiration is the Unix time (seconds) the status clears; omitted when it never expires.
+	StatusExpiration int `json:"status_expiration,omitempty"`
 }
 
 // ListUsers lists workspace users.
@@ -118,6 +123,9 @@ func parseUser(rec map[string]any) User {
 		u.DisplayName = stringVal(profile, "display_name")
 		u.Email = stringVal(profile, "email")
 		u.Title = stringVal(profile, "title")
+		u.StatusText = stringVal(profile, "status_text")
+		u.StatusEmoji = stringVal(profile, "status_emoji")
+		u.StatusExpiration = intVal(profile, "status_expiration")
 	}
 	if v, ok := rec["is_bot"].(bool); ok {
 		u.IsBot = v
