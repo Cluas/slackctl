@@ -157,11 +157,15 @@ The `messages` field is only present when `--fetch` is used.
   "display_name": "alice",
   "email": "alice@example.com",
   "title": "Engineer",
-  "tz": "America/New_York"
+  "tz": "America/New_York",
+  "status_text": "On vacation until Tuesday",
+  "status_emoji": ":palm_tree:",
+  "status_expiration": 1794931200
 }
 ```
 
-- `user list` returns an array of user objects.
+- `status_text` / `status_emoji` are the user's custom status; `status_expiration` is the Unix time (seconds) it clears. Each is omitted when unset, so a user with no status has none of the three.
+- `user list` returns an array of user objects, with the same status fields.
 
 ## Canvas shapes
 
