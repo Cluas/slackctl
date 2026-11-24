@@ -44,6 +44,17 @@ The `attachments` field is only present when `--attachments` is used. It
 projects only the `title` and `text` of each attachment; attachments with
 neither (such as link unfurls, which render through `blocks`) are omitted.
 
+Slack's `text` fallback leaves out table blocks. When a message contains a
+`table` block, `text` is rebuilt from its blocks instead: rich text as mrkdwn
+and each table as a Markdown table (first row as header):
+
+```text
+*Summary*
+| Keyword | Result |
+| --- | --- |
+| `FOO_BAR` | not found |
+```
+
 - `message list` returns an array of message objects:
 
 ```json

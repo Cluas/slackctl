@@ -139,6 +139,12 @@ func parseMessage(msg map[string]any, channelID string) *MessageSummary {
 	// "text" and render entirely through Block Kit blocks/attachments.
 	if summary.Text == "" {
 		summary.Text = renderBlockKitText(msg)
+	} else if blocks, ok := msg["blocks"].([]any); ok && hasBlockType(blocks, "table") {
+		// Slack's "text" fallback omits table blocks entirely, so a message
+		// with tables is rendered from its blocks instead.
+		if s := renderBlocks(blocks); s != "" {
+			summary.Text = s
+		}
 	}
 
 	// Attachment bodies roughly double the size of a channel's output, so they
@@ -299,9 +305,9 @@ func renderAttachment(att map[string]any) string {
 	return strings.Join(lines, "\n")
 }
 
-// renderBlocks joins the readable text of section/header/context blocks.
-// Structural blocks (divider, actions, input, image, ...) carry no message
-// text and are skipped.
+// renderBlocks joins the readable text of section/header/context/rich_text
+// blocks and renders table blocks as Markdown tables. Structural blocks
+// (divider, actions, input, image, ...) carry no message text and are skipped.
 func renderBlocks(blocks []any) string {
 	var lines []string
 	for _, b := range blocks {
@@ -310,6 +316,18 @@ func renderBlocks(blocks []any) string {
 		case "section", "header":
 			if v := renderTextObject(bm["text"]); v != "" {
 				lines = append(lines, v)
+			}
+		case "rich_text":
+			if v := renderRichText(bm); v != "" {
+				lines = append(lines, v)
+			}
+		case "table":
+			// Blank lines around the table so Markdown renders it as one.
+			if v := renderTable(bm); v != "" {
+				if len(lines) > 0 {
+					lines = append(lines, "")
+				}
+				lines = append(lines, v, "")
 			}
 		case "context":
 			var elems []string
@@ -322,6 +340,10 @@ func renderBlocks(blocks []any) string {
 				lines = append(lines, strings.Join(elems, "  "))
 			}
 		}
+	}
+	// Drop the blank line a trailing table leaves behind.
+	if n := len(lines); n > 0 && lines[n-1] == "" {
+		lines = lines[:n-1]
 	}
 	return strings.Join(lines, "\n")
 }
